@@ -1,37 +1,30 @@
 from flask import Flask, redirect, request, session, url_for, render_template
+from spotipy.oauth2 import SpotifyOAuth
+import spotipy
+from datetime import timedelta,datetime
 import redis
 import json
-from datetime import timedelta
 import time
-import spotipy
-from spotipy.oauth2 import SpotifyOAuth
 from uuid import uuid4
+import numpy as np
+import os
 
 # redis-server
-# export SPOTIPY_CLIENT_ID='0f6459bffd6d4c008e28b27d917185e1'
-# export SPOTIPY_CLIENT_SECRET='1b9d49af38914d43ad1163bc15ad6032'
-# export SPOTIPY_REDIRECT_URI='http://localhost:34000/callback'
 
+# export SPOTIPY_REDIRECT_URI='http://localhost:34000/callback'
 app = Flask(__name__)
 app.config['SESSION_COOKIE_NAME'] = 'spotify_login_session'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['REMEMBER_COOKIE_SECURE'] = False
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes = 30)  # Sessions expire
-app.secret_key = 'secret key'
+app.secret_key = os.getenv('SECRET_KEY')
 
 port_num = 34000
-CLIENT_ID = '0f6459bffd6d4c008e28b27d917185e1'
-CLIENT_SECRET = '1b9d49af38914d43ad1163bc15ad6032'
 REDIRECT_URL = f"http://localhost:{port_num}/callback"
 SCOPE = 'user-library-read playlist-read-private playlist-read-collaborative playlist-modify-private playlist-modify-public'
 
 batch_size = 50
 redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
-
-@app.before_request
-def make_session_permanent():
-    session.permanent = True  
-    session.modified = True
 
 @app.after_request
 def add_header(response):
@@ -42,28 +35,36 @@ def add_header(response):
 def index():
     session['uuid'] = str(uuid4())
     logged_in = 'token_info' in session and 'access_token' in session['token_info']
-    sp_oauth = SpotifyOAuth(CLIENT_ID, CLIENT_SECRET, REDIRECT_URL, scope=SCOPE, cache_path=f"cache/.cache-{session['uuid']}")
+    sp_oauth = SpotifyOAuth(
+        client_id=os.getenv('SPOTIPY_CLIENT_ID'),
+        client_secret=os.getenv('SPOTIPY_CLIENT_SECRET'),
+        redirect_uri=REDIRECT_URL,
+        scope=SCOPE,
+        cache_path=f"cache/.cache-{session['uuid']}"
+    )
     auth_url = sp_oauth.get_authorize_url()
     return render_template('index.html', login_url=auth_url, logged_in=logged_in)
 
 @app.route('/callback')
 def callback():
-    sp_oauth = SpotifyOAuth(CLIENT_ID, CLIENT_SECRET, REDIRECT_URL, scope=SCOPE, cache_path=f"cache/.cache-{session['uuid']}")
+    sp_oauth = SpotifyOAuth(
+        client_id=os.getenv('SPOTIPY_CLIENT_ID'),
+        client_secret=os.getenv('SPOTIPY_CLIENT_SECRET'),
+        redirect_uri=REDIRECT_URL,
+        scope=SCOPE,
+        cache_path=f"cache/.cache-{session['uuid']}"
+    )
     token_info = sp_oauth.get_access_token(request.args.get('code'))
-    print("New token fetched", token_info) 
     session['token_info'] = token_info
     access_token = token_info['access_token']
     if sp_oauth.is_token_expired(token_info):
-        print("Token expired, refreshing") 
         token_info = sp_oauth.refresh_access_token(token_info['refresh_token'])
         session['token_info'] = token_info
         access_token = token_info['access_token']
     sp = spotipy.Spotify(auth=access_token)
     user_profile = sp.current_user()
-    print("User logged in", user_profile['id'])  
     session['user_id'] = user_profile['id']
     return redirect(url_for('index'))
-
 
 @app.route('/logout')
 def logout():
@@ -100,8 +101,6 @@ def get_tracks():
             offset += limit
         redis_client.set(user_id, json.dumps(all_tracks))  # Serialize and store
     return render_template('dashboard.html', tracks=all_tracks)
-
-# Get Tracks from a playlist
     
 @app.route('/analyze_tracks')
 def analyze_tracks():
@@ -134,7 +133,6 @@ def analyze_tracks():
         
         data = simplify_data(tracks)
         sp = spotipy.Spotify(auth=session['token_info']['access_token'])
-        import numpy as np
         
         # This is too slow - delete - get country, audio analysis (pitch/timbre)
         # for idx,song in enumerate(data):
@@ -236,9 +234,6 @@ def analyze_tracks():
     return render_template('analytics.html',data = prepared_data, text = ana_text)
 
 import faiss
-import numpy as np
-from datetime import datetime
-
 def kmeans_clustering(data, k, max_iterations=1000):
     num_clusters = k
     dimension = data.shape[1]
@@ -319,12 +314,12 @@ def organize_tracks():
             processed.remove('Others')
         if not processed:
             track['genres'] = 'Others'
-        order = ["Soundtracks","Classical","Jazz","Country/Folk","RnB/Soul","Funk","Indie","Rock","Hip-Hop","Experimental","Electronic","Pop","Others"]
+        order = ["Soundtracks","Classical","Experimental","Jazz","Country/Folk","Funk","Indie","Rock","RnB/Soul","Hip-Hop","Electronic","Pop","Others"]
         # Get the most niche genre
-        for o in order:
-            if o in processed:
-                track['genres'] = o
-                break    
+        for genre in order:
+            if genre in processed:
+                track['genres'] = genre
+                break
     genres = [genre_score[d['genres']]*genre_weights for d in data]
     genres = [0 if np.isnan(x) else x for x in genres]
      
@@ -391,7 +386,7 @@ def organize_tracks():
         else:
             if tracks:
                 sp.playlist_add_items(playlist_ids[cluster_id], tracks)
-        
+                
     return f"{num_k} Playlists Created",200
 
 @app.route('/delete_playlists')
@@ -403,7 +398,7 @@ def delete_user_playlists():
 
     while playlists:
         for playlist in playlists['items']:
-            if playlist['name'].startswith('DNA'):
+            if playlist['name'].startswith('Genrify'):
                 to_delete.append(playlist['id'])
         if playlists['next']:
             playlists = sp.next(playlists)
