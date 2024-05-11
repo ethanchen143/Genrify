@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@latest/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+</head>
+<body>
+    <p>
+        {{text}}
+    </p>
+    <div style="width:50%; margin: 20px auto;">
+        <canvas id="genreChart"></canvas>
+        <div id="dateDisplay"></div>
+        <button id="replayButton" style="display:none;" onclick="location.reload()">Replay</button>
+    </div>
+    <script type="text/javascript">
+        function sortData(labels, data, backgroundColors) {
+            const combined = labels.map((label, index) => ({
+                label: label,
+                data: data[index],
+                backgroundColor: backgroundColors[index]
+            }));
+            combined.sort((a, b) => a.data - b.data);  // Sort from smallest to largest
+            return {
+                labels: combined.map(item => item.label),
+                data: combined.map(item => item.data),
+                backgroundColors: combined.map(item => item.backgroundColor)
+            };
+        }
+        document.addEventListener('DOMContentLoaded', function() {
+            const rawData = {{ data | tojson | safe }};
+            const genreCounts = {};
+            const months = [];
+            const genreColorMap = {
+                "Experimental": "#4a4e4d",
+                "Soundtracks": "#4a4e4d",
+                "Others": "#4a4e4d",
+                "Jazz": "#3da4ab",
+                "Funk": "#3da4ab",
+                "Classical": "#ffc425",
+                "Country/Folk": "#ffc425",
+                "Pop": "#fe8a71",
+                "RnB/Soul": "#fe8a71",
+                "Indie": "#0e9aa7",
+                "Hip-Hop": "#3da4ab",
+                "Electronic": "#f6cd61",
+                "Rock": "#f6cd61",
+            };
+            rawData.forEach(song => {
+                const monthYear = new Date(song.added_at).toISOString().slice(0, 7);
+                if (!months.includes(monthYear)) {
+                    months.push(monthYear);
+                    months.sort(); // Ensure months are in chronological order
+                }
+                song.genres.forEach(genre => {
+                    if (!genreCounts[monthYear]) {
+                        genreCounts[monthYear] = {};
+                    }
+                    if (!genreCounts[monthYear][genre]) {
+                        genreCounts[monthYear][genre] = 0;
+                    }
+                    genreCounts[monthYear][genre]++;
+                });
+            });
+
+            const ctx = document.getElementById('genreChart').getContext('2d');
+
+            let genreChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        backgroundColor: [],
+                        borderColor: '#fff',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: true
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(tooltipItem) {
+                                    let label = tooltipItem.label || '';
+                                    let value = tooltipItem.raw;
+                                    let total = tooltipItem.dataset.data.reduce((acc, curr) => acc + curr, 0);
+                                    let percentage = ((value / total) * 100).toFixed(2);
+                                    return `${label}: ${percentage}%`;
+                                }
+                            }
+                        }
+                    },
+                    animation: {
+                        animateScale: true,
+                        duration: 1200
+                    }
+                }
+            });
+
+            let currentMonthIndex = 0;
+            const cumulativeData = {};
+
+            function updateChart() {
+                if (currentMonthIndex < months.length) {
+                    const currentMonth = months[currentMonthIndex];
+                    document.getElementById('dateDisplay').innerText = `Date: ${currentMonth}`;
+                    
+                    // Update cumulative counts
+                    Object.keys(genreCounts[currentMonth]).forEach(genre => {
+                        if (!cumulativeData[genre]) {
+                            cumulativeData[genre] = 0;
+                        }
+                        cumulativeData[genre] += genreCounts[currentMonth][genre];
+                    });
+                    // Sort the data based on cumulative counts
+                    const sortedGenres = Object.keys(cumulativeData).sort((a, b) => cumulativeData[b] - cumulativeData[a]);
+                    const sortedData = sortedGenres.map(genre => cumulativeData[genre]);
+                    const sortedBackgroundColors = sortedGenres.map(genre => genreColorMap[genre] || "#999999");
+                    // Update chart data
+                    genreChart.data.labels = sortedGenres;
+                    genreChart.data.datasets[0].data = sortedData;
+                    genreChart.data.datasets[0].backgroundColor = sortedBackgroundColors;
+                    genreChart.update();
+                    currentMonthIndex++;
+                    setTimeout(updateChart, 1200); // Update every 1.2 seconds
+                } else {
+                    document.getElementById('replayButton').style.display = 'block'; // Show replay button
+                }
+            }
+
+            function startAnimation() {
+                currentMonthIndex = 0;
+                genreChart.data.labels = [];
+                genreChart.data.datasets[0].data = [];
+                genreChart.data.datasets[0].backgroundColor = [];
+                document.getElementById('replayButton').style.display = 'none'; // Hide replay button
+                updateChart();
+            }
+            startAnimation(); // Start the animation on load
+        });
+    </script>
+</body>
+</html>

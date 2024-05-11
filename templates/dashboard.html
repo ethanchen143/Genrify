@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="containerA">
+        <div class="intro">
+            <div class="item">
+                <h1>Dashboard</h1>
+            </div>
+        </div>
+        <div class="dashboard">
+              <a href="/analyze_tracks" class="db-button">
+                <strong>The Generalizer</strong>
+                <p class="feature-text">Analyze your music and visualize how your music taste evolved in a pie chart.</p>
+              </a>
+              <a href="/organize_tracks" class="db-button">
+                <strong>The Organizer</strong>
+                <p class="feature-text">Generate playlists using songs from your main playlist and add to your Spotify.</p>
+              </a>
+              <a href="/delete_playlists" class="db-button">
+                <strong>Delete</strong>
+                <p class="feature-text">Delete generated playlists by The Organizer</p>
+              </a>
+              <a href="/logout" class="db-button">
+                <strong>Log Out</strong>
+                <p class="feature-text">Log out of your Spotify account</p>
+              </a>
+        </div>
+    </div>
+    <div class="ContainerA">
+        <h1 class="feature-text">List of Songs</h1>
+    </div>
+    <div class="ContainerB">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Date Added</th>
+                    <th>Track Name</th>
+                    <th>Release Date</th>
+                    <th>Popularity</th>
+                    <th>Preview</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for track in tracks %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ track.added_at[:10] }}</td>
+                    <td>{{ track.track.name }}</td>
+                    <td>{{ track.track.album.release_date }}</td>
+                    <td>{{ track.track.popularity }}</td>
+                    <td><a href="{{ track.track.preview_url }}">Preview</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

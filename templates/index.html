@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Genrify</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <div class="containerA">
+        <div class="header">
+            <div class = "inner">
+                <div class="item">
+                    <a href="#feature-section" class="text">Features</a>
+                </div>
+                <div class="item">
+                    <a href="#about-section" class="text">About</a>
+                </div> 
+                <div class="item">
+                    <a href="#contact-section" class="text">Contact</a>
+                </div>
+            </div>
+        </div>
+        <div class="intro">
+            <div class="item">
+                <h1>Genrify</h1>
+                <p>Dive into your music taste and organize playlists</p>
+                {% if not logged_in %}
+                    <a href="{{ login_url }}" class="login-button">Log in with Spotify</a>
+                {% else %}
+                    <a href="/logout" class="login-button">Log Out</a>
+                {% endif %}
+            </div>
+            <div class="item">
+                <img src="{{ url_for('static', filename='media/index_image.png') }}" class="image">
+            </div>
+        </div>
+    </div>
+    {% if logged_in %}
+        <div class="containerB">
+            <div class="choose">
+                <h2>You're logged in, let's get started by fetching your playlists!</h2>
+            </div>
+            <div class="starting-point">
+                <a href="/get_tracks" class="starting-button">Start with Your Liked Songs</a>
+            </div>
+        </div>
+    {% endif %}
+    </div>
+    <div id="feature-section" class="containerC">
+        <div class="features">
+            <h2>Features</h2>
+            <p class="feature-text">* <strong>The Generalizer</strong>: Analyze your music taste and genres you like *</p>
+            <p class="feature-text">* <strong>The Organizer</strong>: Decluster your playlists into themed playlists (Examples Below) *</p>
+            <div class="cards">
+                <iframe class="playlist" src="https://open.spotify.com/embed/playlist/5hLCY90rPw0B0rgYJBSVws" width="25%" height="380" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe>
+                <iframe class="playlist" src="https://open.spotify.com/embed/playlist/6soKcFq5nEm2knVZgFQaOQ" width="25%" height="380" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe>
+                <iframe class="playlist" src="https://open.spotify.com/embed/playlist/4iZDEBR9FCJBrRnqQylriN" width="25%" height="380" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe>
+            </div>
+        </div>
+    </div>
+    <div id="about-section" class="containerB">
+        <div class="features">
+            <h2>About</h2>
+            <p class="feature-text">Genrify was developed as an open source web app powered by the Spotify API.</p>
+            <p class="feature-text">By choosing to use this app, you agree to the use of your Spotify account username and data for your tracks and playlists.</p>
+            <p class="feature-text">None of the data used is stored or collected anywhere, and it is NOT shared with any third parties.</p>
+        </div>
+    </div>
+    <div id="contact-section" class="containerC">
+        <div class="features">
+            <h2>Contact</h2>
+            <a href = "http://blue-mirror.com" class="made-by">Made by Ethan Chen</a>
+            <div class="social-buttons">
+                <a href="https://www.linkedin.com/in/ethan-chen-a9a264250/" target="_blank" class="social-button">
+                    <i class="fab fa-linkedin"></i>
+                </a>
+                <a href="mailto:ethanchen143@gmail.com" class="social-button">
+                    <i class="fas fa-envelope"></i>
+                </a>
+                <a href="https://open.spotify.com/artist/1L02fZkGeJPkZIS86zf7l9?si=ipI5UvoxSa-zxbQnFtV13g" target="_blank" class="social-button">
+                    <i class="fab fa-spotify"></i>
+                </a>
+                <a href="https://www.youtube.com/@ethanchen8289" target="_blank" class="social-button">
+                    <i class="fab fa-youtube"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
