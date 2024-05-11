@@ -42,13 +42,13 @@ def add_header(response):
 def index():
     session['uuid'] = str(uuid4())
     logged_in = 'token_info' in session and 'access_token' in session['token_info']
-    sp_oauth = SpotifyOAuth(CLIENT_ID, CLIENT_SECRET, REDIRECT_URL, scope=SCOPE, cache_path=f".cache-{session['uuid']}")
+    sp_oauth = SpotifyOAuth(CLIENT_ID, CLIENT_SECRET, REDIRECT_URL, scope=SCOPE, cache_path=f"cache/.cache-{session['uuid']}")
     auth_url = sp_oauth.get_authorize_url()
     return render_template('index.html', login_url=auth_url, logged_in=logged_in)
 
 @app.route('/callback')
 def callback():
-    sp_oauth = SpotifyOAuth(CLIENT_ID, CLIENT_SECRET, REDIRECT_URL, scope=SCOPE, cache_path=f".cache-{session['uuid']}")
+    sp_oauth = SpotifyOAuth(CLIENT_ID, CLIENT_SECRET, REDIRECT_URL, scope=SCOPE, cache_path=f"cache/.cache-{session['uuid']}")
     token_info = sp_oauth.get_access_token(request.args.get('code'))
     print("New token fetched", token_info) 
     session['token_info'] = token_info
