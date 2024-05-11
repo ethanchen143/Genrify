@@ -10,18 +10,17 @@ import numpy as np
 import os
 
 # redis-server
-
 # export SPOTIPY_REDIRECT_URI='http://localhost:34000/callback'
 app = Flask(__name__)
 app.config['SESSION_COOKIE_NAME'] = 'spotify_login_session'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['REMEMBER_COOKIE_SECURE'] = False
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes = 30)  # Sessions expire
-app.secret_key = os.getenv('SECRET_KEY')
+app.secret_key = os.getenv('SECRET_KEY','secret_key')
 
 port_num = 34000
 REDIRECT_URL = f"http://localhost:{port_num}/callback"
-SCOPE = 'user-library-read playlist-read-private playlist-read-collaborative playlist-modify-private playlist-modify-public'
+SCOPE = 'user-library-read playlist-read-private playlist-modify-private playlist-modify-public'
 
 batch_size = 50
 redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
@@ -47,6 +46,7 @@ def index():
 
 @app.route('/callback')
 def callback():
+    session['uuid'] = str(uuid4())
     sp_oauth = SpotifyOAuth(
         client_id=os.getenv('SPOTIPY_CLIENT_ID'),
         client_secret=os.getenv('SPOTIPY_CLIENT_SECRET'),
@@ -70,8 +70,9 @@ def callback():
 def logout():
     user_id = session.get('user_id')
     if user_id:
-        redis_client.delete(user_id)  # Clear user-specific cache
-        redis_client.delete(user_id + 'AN')  # Clear any additional cached data
+        redis_client.delete(user_id) 
+        redis_client.delete(user_id + 'AN')
+        redis_client.delete(user_id + 'AN-text')
     session.pop('token_info', None)
     session.clear()
     return redirect('https://accounts.spotify.com/en/logout')
@@ -80,16 +81,15 @@ def logout():
 def get_tracks():
     if 'token_info' not in session or 'access_token' not in session['token_info']:
         return redirect(url_for('index'))
+    sp = spotipy.Spotify(auth=session['token_info']['access_token'])
     user_id = session['user_id']
     need_to_refresh = True
     if redis_client.exists(user_id):
         all_tracks = redis_client.get(user_id)
         all_tracks = json.loads(all_tracks.decode('utf-8'))  # Decode and deserialize
-        sp = spotipy.Spotify(auth=session['token_info']['access_token'])
         if all_tracks[:batch_size] == sp.current_user_saved_tracks(limit=batch_size, offset=0)['items']:
             need_to_refresh = False
     if need_to_refresh:
-        sp = spotipy.Spotify(auth=session['token_info']['access_token'])
         offset = 0
         limit = batch_size
         all_tracks = []
@@ -227,14 +227,20 @@ def analyze_tracks():
             processed.remove('Others')
         track['genres'] = processed
 
-    # Analyze music taste -> text
+    # Analyze data->text, with cacheing
     from analysis import analyze
-    ana_text = analyze(prepared_data)
+    an_text_id = session['user_id']+'AN-Text'
+    if redis_client.exists(an_text_id):
+        ana_text = redis_client.get(an_text_id)
+        ana_text = json.loads(ana_text.decode('utf-8'))
+    else:
+        ana_text = analyze(prepared_data)
+        redis_client.set(an_text_id, json.dumps(ana_text))
     print(ana_text)
     return render_template('analytics.html',data = prepared_data, text = ana_text)
 
 import faiss
-def kmeans_clustering(data, k, max_iterations=1000):
+def kmeans(data, k, max_iterations=1000):
     num_clusters = k
     dimension = data.shape[1]
     initial_centroids = np.random.rand(num_clusters, dimension).astype('float32')
@@ -261,7 +267,7 @@ def organize_tracks():
     user_id = session['user_id']
     ana_id = user_id + 'AN'
     if not redis_client.exists(ana_id):
-        return redirect(url_for('analyze_tracks'))
+        analyze_tracks()
 
     data = redis_client.get(ana_id)
     data = json.loads(data.decode('utf-8'))
@@ -343,7 +349,7 @@ def organize_tracks():
     
     # around 30 songs / Playlists
     num_k = len(data)//30+1
-    cluster_ids, centroids = kmeans_clustering(clean_data, k=num_k)
+    cluster_ids, centroids = kmeans(clean_data, k=num_k)
     
     # Debug Print
     # np.set_printoptions(threshold=np.inf)
@@ -387,7 +393,8 @@ def organize_tracks():
             if tracks:
                 sp.playlist_add_items(playlist_ids[cluster_id], tracks)
                 
-    return f"{num_k} Playlists Created",200
+    return render_template('message.html',text = f"{num_k} playlists created, check them out on your Spotify app!")
+
 
 @app.route('/delete_playlists')
 def delete_user_playlists():
@@ -415,7 +422,7 @@ def delete_user_playlists():
             sp.user_playlist_unfollow(user_id, playlist_id)
         total_deleted += len(batch)
 
-    return f"Deleted {total_deleted} playlists", 200
+    return render_template('message.html',text = f"{total_deleted} playlists deleted, you can log out and generate again.")
 
 if __name__ == '__main__':
     app.run(debug=True, port=port_num)

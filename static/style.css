@@ -260,3 +260,12 @@ a {
     text-decoration: none;
     font-weight: bold;
 }
+
+.analysis-text {
+    padding: 100px;
+    font-size: 24px;                  
+    color: #F9FAF8;                     
+    line-height: 1;
+    white-space: pre-wrap;     
+    text-align: left;
+}
