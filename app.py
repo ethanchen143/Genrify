@@ -9,8 +9,6 @@ from uuid import uuid4
 import numpy as np
 import os
 
-# redis-server
-# export SPOTIPY_REDIRECT_URI='http://localhost:34000/callback'
 app = Flask(__name__)
 app.config['SESSION_COOKIE_NAME'] = 'spotify_login_session'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
