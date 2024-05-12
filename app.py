@@ -22,12 +22,9 @@ SCOPE = 'user-library-read playlist-read-private playlist-modify-private playlis
 batch_size = 50
 from urllib.parse import urlparse
 redis_url = urlparse(os.getenv('REDISCLOUD_URL'))
-redis_client = redis.StrictRedis(
-    host=redis_url.hostname,
-    port=redis_url.port,
-    password=redis_url.password,
-    ssl=True,  # Use SSL if required by the Redis add-on
-)
+
+redis_client = redis.Redis(host=redis_url.hostname, port=redis_url.port, password=redis_url.password)
+
 
 @app.after_request
 def add_header(response):
