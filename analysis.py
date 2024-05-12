@@ -94,13 +94,17 @@ def analyze(data):
     client = anthropic.Anthropic(
         api_key=os.getenv("ANTHROPIC_API_KEY"),
     )
-    try:
-        response = client.models.list()
-        print(f"Connection successful! Available models: {response.data}")
-    except anthropic.APIConnectionError as e:
-        print(f"Failed to connect: {e}")
-    except Exception as e:
-        print(f"Other error: {e}")
+    message = client.messages.create(
+        max_tokens=1024,
+        messages=[
+            {
+                "role": "user",
+                "content": "Hello, Claude",
+            }
+        ],
+        model="claude-3-opus-20240229",
+    )
+    print(message.content)
     
     try:
         message = client.messages.create(
@@ -117,9 +121,15 @@ def analyze(data):
         else:
             response_text = "No response received from Claude API."
     except anthropic.APIConnectionError as e:
-        response_text = f"Failed to connect to Anthropics API: {str(e)}"
-    except Exception as e:
-        response_text = f"An error occurred: {str(e)}"
+        print("The server could not be reached")
+        print(e.__cause__)  # an underlying Exception, likely raised within httpx.
+        response_text = e.__cause__
+    except anthropic.RateLimitError as e:
+        print("A 429 status code was received; we should back off a bit.")
+    except anthropic.APIStatusError as e:
+        print("Another non-200-range status code was received")
+        print(e.status_code)
+        print(e.response)
     return response_text
 
 # if __name__ == '__main__':
