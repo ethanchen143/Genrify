@@ -67,11 +67,7 @@ def callback():
 
 @app.route('/logout')
 def logout():
-    user_id = session.get('user_id')
-    if user_id:
-        redis_client.delete(user_id) 
-        redis_client.delete(user_id + 'AN')
-        redis_client.delete(user_id + 'AN-text')
+    redis_client.flushall()
     session.pop('token_info', None)
     session.clear()
     return redirect('https://accounts.spotify.com/en/logout')
