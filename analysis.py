@@ -102,25 +102,25 @@ def analyze(data):
     except Exception as e:
         print(f"Other error: {e}")
     
-    # try:
-    #     message = client.messages.create(
-    #         model="claude-3-haiku-20240307",
-    #         max_tokens=1000,
-    #         temperature=0.1,
-    #         system="You are an insightful music taste analyzer. Talk to me like a person (steer away from big words). Cite numeric data to prove your points in the song data analysis and be insightful about standard deviation which represents how well spread the data is. Don't use any filler words. Use stripped to the core language and try to start sentences with 'You'",
-    #         messages=[
-    #             {"role": "user", "content": prompt}
-    #         ]
-    #     )
-    #     if message.content:
-    #         response_text = message.content[0].text
-    #     else:
-    #         response_text = "No response received from Claude API."
-    # except anthropic.APIConnectionError as e:
-    #     response_text = f"Failed to connect to Anthropics API: {str(e)}"
-    # except Exception as e:
-    #     response_text = f"An error occurred: {str(e)}"
-    # return response_text
+    try:
+        message = client.messages.create(
+            model="claude-3-haiku-20240307",
+            max_tokens=1000,
+            temperature=0.1,
+            system="You are an insightful music taste analyzer. Talk to me like a person (steer away from big words). Cite numeric data to prove your points in the song data analysis and be insightful about standard deviation which represents how well spread the data is. Don't use any filler words. Use stripped to the core language and try to start sentences with 'You'",
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
+        )
+        if message.content:
+            response_text = message.content[0].text
+        else:
+            response_text = "No response received from Claude API."
+    except anthropic.APIConnectionError as e:
+        response_text = f"Failed to connect to Anthropics API: {str(e)}"
+    except Exception as e:
+        response_text = f"An error occurred: {str(e)}"
+    return response_text
 
 # if __name__ == '__main__':
 #     artist_name = "doja cat"

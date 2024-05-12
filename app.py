@@ -24,7 +24,6 @@ from urllib.parse import urlparse
 redis_url = urlparse(os.getenv('REDISCLOUD_URL'))
 redis_client = redis.Redis(host=redis_url.hostname, port=redis_url.port, password=redis_url.password)
 
-
 @app.after_request
 def add_header(response):
     response.cache_control.no_store = True
@@ -233,9 +232,12 @@ def analyze_tracks():
     if redis_client.exists(an_text_id):
         ana_text = redis_client.get(an_text_id)
         ana_text = json.loads(ana_text.decode('utf-8'))
+        print(f'already in database: {ana_text}')
     else:
         ana_text = analyze(prepared_data)
         redis_client.set(an_text_id, json.dumps(ana_text))
+        print(f'set to databse: {ana_text}')
+    
     return render_template('analytics.html',data = prepared_data, text = ana_text)
 
 import faiss
