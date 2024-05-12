@@ -112,7 +112,6 @@ def analyze(data):
     except anthropic.APIConnectionError as e:
         print("The server could not be reached")
         print(e.__cause__)  # an underlying Exception, likely raised within httpx.
-        response_text = e.__cause__
     except anthropic.RateLimitError as e:
         print("A 429 status code was received; we should back off a bit.")
     except anthropic.APIStatusError as e:
