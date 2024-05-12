@@ -18,12 +18,18 @@ app.config['REMEMBER_COOKIE_SECURE'] = False
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes = 30)  # Sessions expire
 app.secret_key = os.getenv('SECRET_KEY','secret_key')
 
-port_num = 34000
-REDIRECT_URL = f"http://localhost:{port_num}/callback"
+REDIRECT_URL = f"https://www.genrify.us/callback"
 SCOPE = 'user-library-read playlist-read-private playlist-modify-private playlist-modify-public'
 
 batch_size = 50
-redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
+from urllib.parse import urlparse
+redis_url = urlparse(os.getenv('REDISCLOUD_URL'))
+redis_client = redis.StrictRedis(
+    host=redis_url.hostname,
+    port=redis_url.port,
+    password=redis_url.password,
+    ssl=True,  # Use SSL if required by the Redis add-on
+)
 
 @app.after_request
 def add_header(response):
@@ -424,5 +430,5 @@ def delete_user_playlists():
 
     return render_template('message.html',text = f"{total_deleted} playlists deleted, you can log out and generate again.")
 
-if __name__ == '__main__':
-    app.run(debug=True, port=port_num)
+# if __name__ == '__main__':
+#     app.run(debug=True, port=port_num)
