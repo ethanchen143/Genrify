@@ -94,17 +94,6 @@ def analyze(data):
     client = anthropic.Anthropic(
         api_key=os.getenv("ANTHROPIC_API_KEY"),
     )
-    message = client.messages.create(
-        max_tokens=1024,
-        messages=[
-            {
-                "role": "user",
-                "content": "Hello, Claude",
-            }
-        ],
-        model="claude-3-opus-20240229",
-    )
-    print(message.content)
     
     try:
         message = client.messages.create(
