@@ -129,8 +129,8 @@ def analyze_tracks():
         sp = spotipy.Spotify(auth=session['token_info']['access_token'])
             
         # Get Genre and Audio Features
-        for i in range(0,len(data),100):
-            ids = [track['artist_id'] for track in data[i:i+100]]
+        for i in range(0,len(data),50):
+            ids = [track['artist_id'] for track in data[i:i+50]]
             try:
                 artists = sp.artists(ids)['artists']
             except spotipy.exceptions.SpotifyException as e:
@@ -140,10 +140,10 @@ def analyze_tracks():
                     time.sleep(60)
                     artists = sp.artists(ids)['artists']
             
-            for track, artist in zip(data[i:i+100], artists):
+            for track, artist in zip(data[i:i+50], artists):
                 track['genres'] = artist.get('genres', [])
                 
-            ids = [track['id'] for track in data[i:i+100]]
+            ids = [track['id'] for track in data[i:i+50]]
             try:
                 features = sp.audio_features(ids)
             except spotipy.exceptions.SpotifyException as e:
@@ -153,7 +153,7 @@ def analyze_tracks():
                     time.sleep(60)
                     features = sp.audio_features(ids)
                     
-            for track, feature in zip(data[i:i+100], features):
+            for track, feature in zip(data[i:i+50], features):
                 track['acousticness'] = feature['acousticness']
                 track['danceability'] = feature['danceability']
                 track['energy'] = feature['energy']
