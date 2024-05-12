@@ -93,17 +93,28 @@ def analyze(data):
     client = anthropic.Anthropic(
         api_key=os.getenv("ANTHROPIC_API_KEY"),
     )
+    try:
+        message = client.messages.create(
+            model="claude-3-haiku-20240307",
+            max_tokens=1000,
+            temperature=0.1,
+            system="You are an insightful music taste analyzer. Talk to me like a person (steer away from big words). Cite numeric data to prove your points in the song data analysis and be insightful about standard deviation which represents how well spread the data is. Don't use any filler words. Use stripped to the core language and try to start sentences with 'You'",
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
+        )
+        if message.content:
+            response_text = message.content[0].text
+        else:
+            response_text = "No response received from Claude API."
+    except anthropic.APIConnectionError as e:
+        response_text = f"Failed to connect to Anthropics API: {str(e)}"
+        print(response_text) 
+    except Exception as e:
+        response_text = f"An error occurred: {str(e)}"
+        print(response_text)
 
-    message = client.messages.create(
-        model="claude-3-haiku-20240307",
-        max_tokens=1000,
-        temperature=0.1,
-        system="You are an insightful music taste analyzer. Talk to me like a person (steer away from big words). Cite numeric data to prove your points in the song data analysis and be insightful about standard deviation which represents how well spread the data is. Don't use any filler words. Use stripped to the core language and try to start senteces with 'You'",
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
-)
-    return message.content[0].text
+    
 
 if __name__ == '__main__':
     artist_name = "doja cat"
