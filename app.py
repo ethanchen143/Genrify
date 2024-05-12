@@ -19,7 +19,6 @@ app.secret_key = os.getenv('SECRET_KEY','secret_key')
 REDIRECT_URL = f"https://www.genrify.us/callback"
 SCOPE = 'user-library-read playlist-read-private playlist-modify-private playlist-modify-public'
 
-batch_size = 50
 from urllib.parse import urlparse
 redis_url = urlparse(os.getenv('REDISCLOUD_URL'))
 redis_client = redis.Redis(host=redis_url.hostname, port=redis_url.port, password=redis_url.password)
@@ -82,11 +81,11 @@ def get_tracks():
     if redis_client.exists(user_id):
         all_tracks = redis_client.get(user_id)
         all_tracks = json.loads(all_tracks.decode('utf-8'))  # Decode and deserialize
-        if all_tracks[:batch_size] == sp.current_user_saved_tracks(limit=batch_size, offset=0)['items']:
+        if all_tracks[:50] == sp.current_user_saved_tracks(limit=50, offset=0)['items']:
             need_to_refresh = False
     if need_to_refresh:
         offset = 0
-        limit = batch_size
+        limit = 50
         all_tracks = []
         while True:
             results = sp.current_user_saved_tracks(limit=limit, offset=offset)
@@ -94,7 +93,7 @@ def get_tracks():
             if results['next'] is None:
                 break
             offset += limit
-        redis_client.set(user_id, json.dumps(all_tracks))  # Serialize and store
+        redis_client.setex(user_id, 900, json.dumps(all_tracks))
     return render_template('dashboard.html', tracks=all_tracks)
     
 @app.route('/analyze_tracks')
@@ -128,49 +127,10 @@ def analyze_tracks():
         
         data = simplify_data(tracks)
         sp = spotipy.Spotify(auth=session['token_info']['access_token'])
-        
-        # This is too slow - delete - get country, audio analysis (pitch/timbre)
-        # for idx,song in enumerate(data):
-        #     # Get Country
-        #     import musicbrainzngs
-        #     musicbrainzngs.set_useragent("MusicDNA", "1.0", "ethanchen143@gmail.com")
-        #     def get_artist_country(artist_name):
-        #         result = musicbrainzngs.search_artists(artist=artist_name)
-        #         for artist in result['artist-list']:
-        #             if 'country' in artist:
-        #                 return artist['country']
-        #         return "US"
-        #     if song['artist_names']:
-        #         try:
-        #             data[idx]['origin'] = get_artist_country(song['artist_names'][0])
-        #         except Exception as e:
-        #             data[idx]['origin'] = 'US'
-        #     else:
-        #         data[idx]['origin'] = 'US'
-        #     # Get Audio Analysis and Handle Rate Limits
-        #     try:
-        #         analysis = sp.audio_analysis(song['id'])
-        #     except spotipy.exceptions.SpotifyException as e:
-        #         print('Rate Limit Audio Analysis')
-        #         if e.http_status == 429:
-        #             print(f'retrying: after 60 seconds')
-        #             time.sleep(60)
-        #             analysis = sp.audio_analysis(song['id'])
-        #         else:
-        #             data[idx]['pitch'] = [0]*12
-        #             data[idx]['timbre'] = [0]*12
-        #             continue
-                
-        #     all_pitches = [segment['pitches'] for segment in analysis['segments']]
-        #     mean_pitches = np.mean(all_pitches, axis=0).tolist()
-        #     data[idx]['pitch'] = mean_pitches
-        #     all_timbre = [segment['timbre'] for segment in analysis['segments']]
-        #     mean_timbre = np.mean(all_timbre, axis=0).tolist()
-        #     data[idx]['timbre'] = mean_timbre
             
         # Get Genre and Audio Features
-        for i in range(0,len(data),batch_size):
-            ids = [track['artist_id'] for track in data[i:i+batch_size]]
+        for i in range(0,len(data),100):
+            ids = [track['artist_id'] for track in data[i:i+100]]
             try:
                 artists = sp.artists(ids)['artists']
             except spotipy.exceptions.SpotifyException as e:
@@ -180,10 +140,10 @@ def analyze_tracks():
                     time.sleep(60)
                     artists = sp.artists(ids)['artists']
             
-            for track, artist in zip(data[i:i+batch_size], artists):
+            for track, artist in zip(data[i:i+100], artists):
                 track['genres'] = artist.get('genres', [])
                 
-            ids = [track['id'] for track in data[i:i+batch_size]]
+            ids = [track['id'] for track in data[i:i+100]]
             try:
                 features = sp.audio_features(ids)
             except spotipy.exceptions.SpotifyException as e:
@@ -193,7 +153,7 @@ def analyze_tracks():
                     time.sleep(60)
                     features = sp.audio_features(ids)
                     
-            for track, feature in zip(data[i:i+batch_size], features):
+            for track, feature in zip(data[i:i+100], features):
                 track['acousticness'] = feature['acousticness']
                 track['danceability'] = feature['danceability']
                 track['energy'] = feature['energy']
@@ -206,8 +166,7 @@ def analyze_tracks():
                 track['key'] = feature['key']
                 track['mode'] = feature['mode']
                 track['time_signature'] = feature['time_signature']
-
-        redis_client.set(ana_id, json.dumps(data))
+        redis_client.setex(ana_id, 900, json.dumps(data))
     
     # Get Cleaned Genres
     from genre_map import convert
@@ -228,16 +187,14 @@ def analyze_tracks():
     if redis_client.exists(an_text_id):
         ana_text = redis_client.get(an_text_id)
         ana_text = json.loads(ana_text.decode('utf-8'))
-        print(f'already in database: {ana_text}')
     else:
         ana_text = analyze(prepared_data)
-        redis_client.set(an_text_id, json.dumps(ana_text))
-        print(f'set to databse: {ana_text}')
+        redis_client.setex(an_text_id, 900, json.dumps(ana_text))
     
     return render_template('analytics.html',data = prepared_data, text = ana_text)
 
 import faiss
-def kmeans(data, k, max_iterations=500):
+def kmeans(data, k, max_iterations=1000):
     num_clusters = k
     dimension = data.shape[1]
     initial_centroids = np.random.rand(num_clusters, dimension).astype('float32')
@@ -249,16 +206,14 @@ def kmeans(data, k, max_iterations=500):
 
 @app.route('/organize_tracks')
 def organize_tracks():
-    # dates, timbre, genre, popularity, danceability, energy, acousticness, liveness
+    # dates, genre, popularity, danceability, energy, acousticness
     dates_weight = 5
     genre_weights = 1 # 20-point difference between genres
     popular_weights = 2.5
     valence_weights = 2.5
-    dance_weights = 2.5
     energy_weights = 2.5
+    dance_weights = 2.5
     acoustic_weights = 2.5
-    live_weights = 2.5
-    # timbre_weights = 1 # 12-point system
     
     sp = spotipy.Spotify(auth=session['token_info']['access_token'])
     user_id = session['user_id']
@@ -325,7 +280,7 @@ def organize_tracks():
                 break
     genres = [genre_score[d['genres']]*genre_weights for d in data]
     genres = [0 if np.isnan(x) else x for x in genres]
-     
+
     popularities = [d['track_popularity']/100 for d in data]
 
     # Populate clean_data
@@ -339,7 +294,6 @@ def organize_tracks():
         tmp.append(data[idx]['danceability']*dance_weights)
         tmp.append(data[idx]['energy']*energy_weights)
         tmp.append(data[idx]['acousticness']*acoustic_weights)
-        tmp.append(data[idx]['liveness']*live_weights)
         # tmp.extend(normalized_timbres[idx])
         clean_data.append(tmp)
     clean_data = np.array(clean_data)

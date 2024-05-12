@@ -20,7 +20,7 @@ def get_tags(artist_name):
     if response.status_code == 200:
         data = response.json()
         if 'toptags' in data and 'tag' in data['toptags']:
-            top_tags = [tag['name'] for tag in data['toptags']['tag']][:10]
+            top_tags = [tag['name'] for tag in data['toptags']['tag']][:10] # Get Top 10 Tags
             return top_tags
     return None
 
@@ -28,6 +28,8 @@ import anthropic
 import os
 
 def analyze(data):
+    print(data[0])
+    
     genres = [y for x in data for y in x['genres']]
     counter = Counter(genres)
     fav_genres = counter.most_common(5)
@@ -42,9 +44,10 @@ def analyze(data):
     top_tags = ''
     for artist in fav_artists:
         tags = get_tags(artist[0])
-        top_tags += f'{artist[0]}: '
-        top_tags += ', '.join(tags)
-        top_tags += '. '
+        if tags:  # Check if tags is not None
+            top_tags += f'{artist[0]}: '
+            top_tags += ', '.join(tags)
+            top_tags += '\n'
     
     popular = np.array([x['track_popularity'] for x in data])
     pop_mean = np.mean(popular)
@@ -94,7 +97,7 @@ def analyze(data):
     client = anthropic.Anthropic(
         api_key=os.getenv("ANTHROPIC_API_KEY"),
     )
-    
+    response_text = 'Error Getting Analysis'
     try:
         message = client.messages.create(
             model="claude-3-haiku-20240307",
@@ -118,33 +121,6 @@ def analyze(data):
         print("Another non-200-range status code was received")
         print(e.status_code)
         print(e.response)
+    
+    print(response_text)
     return response_text
-
-# if __name__ == '__main__':
-#     artist_name = "doja cat"
-#     bio = get_bio(artist_name)
-#     if bio:
-#         print("Short Biography:")
-#         print(bio)
-#     else:
-#         print("Failed to retrieve artist biography.")
-#     tags = get_tags(artist_name)
-#     if tags:
-#         print("Top Tags:")
-#         for tag in tags:
-#             print(tag)
-#     else:
-#         print("Failed to retrieve top tags for the artist.")
-        
-# def gpt(prompt):
-#     api_key = 'api key'
-#     url = "https://api.openai.com/v1/engines/gpt-3.5-turbo/completions"
-#     headers = {
-#         "Authorization": f"Bearer {api_key}",
-#         "Content-Type": "application/json"
-#     }
-#     data = {
-#         "prompt": prompt,
-#     }
-#     response = requests.post(url, headers=headers, json=data)
-#     return response.text
