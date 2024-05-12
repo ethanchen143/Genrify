@@ -23,6 +23,7 @@ Flask==3.0.2
 fonttools==4.39.4
 fsspec==2024.3.1
 future==0.18.2
+gunicorn==22.0.0
 h11==0.14.0
 httpcore==1.0.5
 httpx==0.27.0
