@@ -237,7 +237,7 @@ def analyze_tracks():
     return render_template('analytics.html',data = prepared_data, text = ana_text)
 
 import faiss
-def kmeans(data, k, max_iterations=1000):
+def kmeans(data, k, max_iterations=500):
     num_clusters = k
     dimension = data.shape[1]
     initial_centroids = np.random.rand(num_clusters, dimension).astype('float32')
