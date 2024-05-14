@@ -254,16 +254,18 @@ def background_job(user_id, token_info, job_type):
                     if 'Others' in processed and len(processed) != 1:
                         processed.remove('Others')
                     track['genres'] = processed
-                    order = ["Soundtracks", "Classical", "Experimental", "Jazz", "Country/Folk", "Funk", "Indie", "Rock", "RnB/Soul", "Hip-Hop", "Electronic", "Pop", "Others"]
-                    for genre in order:
-                        if genre in processed:
-                            track['genres'] = genre
-                            break
+
                         
                 redis_client.setex(ana_id, 900, json.dumps(prepared_data))
 
             data = redis_client.get(ana_id)
             data = json.loads(data.decode('utf-8'))
+            for track in data:
+                order = ["Soundtracks", "Classical", "Experimental", "Jazz", "Country/Folk", "Funk", "Indie", "Rock", "RnB/Soul", "Hip-Hop", "Electronic", "Pop", "Others"]
+                for genre in order:
+                    if genre in track['genres']:
+                        track['genres'] = genre
+                        break
             
             print(f'first data:{data[0]}')
             
