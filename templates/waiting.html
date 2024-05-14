@@ -23,8 +23,8 @@
         function checkStatus() {
             const jobType = {{ job_type | tojson }};
             console.log('Job Type:', jobType);
+            console.log('Checking status...');
             fetch(`/check_status?job_type=${jobType}`)
-                console.log('Checking status...');
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('Network response was not ok');
