@@ -23,12 +23,18 @@
     <script>
         function checkStatus() {
             fetch('/check_status')
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     if (data.status === 'completed') {
-                        window.location.href = '/results?type=' + getResultType();
+                        const jobType = new URLSearchParams(window.location.search).get('job_type');
+                        window.location.href = `/results?type=${jobType}`;
                     } else if (data.status === 'error') {
-                        document.getElementById('error-message').innerText = 'An error occurred: ' + JSON.stringify(data.details);
+                        document.getElementById('error-message').innerText = 'An error occurred: ' + data.details;
                     } else {
                         setTimeout(checkStatus, 5000); // check again after 5 seconds
                     }
@@ -37,12 +43,7 @@
                     document.getElementById('error-message').innerText = 'An error occurred: ' + error;
                 });
         }
-        
-        function getResultType() {
-            const urlParams = new URLSearchParams(window.location.search);
-            return urlParams.get('type');
-        }
-        
+
         checkStatus();
     </script>
 </body>
