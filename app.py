@@ -350,7 +350,8 @@ def check_status():
     status = redis_client.get(f"{user_id}_status").decode('utf-8')
     
     if status == 'completed':
-        return jsonify({'status': 'completed'})
+        job_type = request.args.get('job_type')
+        return jsonify({'status': 'completed', 'job_type': job_type})
     elif 'error' in status:
         return jsonify({'status': 'error', 'details': status})
     else:
@@ -360,18 +361,30 @@ def check_status():
 def results():
     user_id = session['user_id']
     job_type = request.args.get('type')
+    
     if job_type == 'get_tracks':
         all_tracks = redis_client.get(user_id)
-        all_tracks = json.loads(all_tracks.decode('utf-8'))
-        return render_template('dashboard.html', tracks=all_tracks)
+        if all_tracks:
+            all_tracks = json.loads(all_tracks.decode('utf-8'))
+            return render_template('dashboard.html', tracks=all_tracks)
+        else:
+            return render_template('message.html', text="No tracks found.")
+    
     elif job_type == 'analyze_tracks':
         data = redis_client.get(user_id + 'AN')
-        data = json.loads(data.decode('utf-8'))
         ana_text = redis_client.get(user_id + 'AN-Text')
-        ana_text = json.loads(ana_text.decode('utf-8'))
-        return render_template('analytics.html', data=data, text=ana_text)
+        if data and ana_text:
+            data = json.loads(data.decode('utf-8'))
+            ana_text = json.loads(ana_text.decode('utf-8'))
+            return render_template('analytics.html', data=data, text=ana_text)
+        else:
+            return render_template('message.html', text="Analysis data not found.")
+    
     elif job_type == 'organize_tracks':
         return render_template('message.html', text="Playlists created, check them out on your Spotify app!")
+    
+    else:
+        return render_template('message.html', text="Invalid job type.")
 
 if __name__ == '__main__':
     app.run(debug=True)
