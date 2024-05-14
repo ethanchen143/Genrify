@@ -74,15 +74,13 @@ def logout():
 
 def background_job(user_id, token_info, job_type):
     sp = spotipy.Spotify(auth=token_info['access_token'])
-    print(f"Starting {job_type} for user {user_id}")
     try:
         if job_type == 'get_tracks':
             need_to_refresh = True
             if redis_client.exists(user_id):
                 all_tracks = redis_client.get(user_id)
                 all_tracks = json.loads(all_tracks.decode('utf-8'))
-                if all_tracks[:50] == sp.current_user_saved_tracks(limit=50, offset=0)['items']:
-                    need_to_refresh = False
+                need_to_refresh = False
             if need_to_refresh:
                 offset = 0
                 limit = 50
@@ -94,6 +92,7 @@ def background_job(user_id, token_info, job_type):
                         break
                     offset += limit
                 redis_client.setex(user_id, 900, json.dumps(all_tracks))
+                
         elif job_type == 'analyze_tracks':
             ana_id = user_id + 'AN'
             need_to_refresh = True
@@ -147,20 +146,20 @@ def background_job(user_id, token_info, job_type):
                         track['mode'] = feature['mode']
                         track['time_signature'] = feature['time_signature']
             
-            # Get Cleaned Genres
-            from genre_map import convert
-            import copy
-            prepared_data = copy.deepcopy(data)
-            for track in prepared_data:
-                processed = []
-                for g in track['genres']:
-                    processed.append(convert(g))
-                processed = list(set(processed))
-                if 'Others' in processed and len(processed) != 1:
-                    processed.remove('Others')
-                track['genres'] = processed
-            
-            redis_client.setex(ana_id, 900, json.dumps(prepared_data))
+                # Get Cleaned Genres
+                from genre_map import convert
+                import copy
+                prepared_data = copy.deepcopy(data)
+                for track in prepared_data:
+                    processed = []
+                    for g in track['genres']:
+                        processed.append(convert(g))
+                    processed = list(set(processed))
+                    if 'Others' in processed and len(processed) != 1:
+                        processed.remove('Others')
+                    track['genres'] = processed
+                
+                redis_client.setex(ana_id, 900, json.dumps(prepared_data))
 
             # Analyze data->text, with cacheing
             from analysis import analyze
@@ -169,7 +168,8 @@ def background_job(user_id, token_info, job_type):
                 ana_text = redis_client.get(an_text_id)
                 ana_text = json.loads(ana_text.decode('utf-8'))
             else:
-                ana_text = analyze(prepared_data)
+                data = redis_client.get(ana_id)
+                ana_text = analyze(data)
                 redis_client.setex(an_text_id, 900, json.dumps(ana_text))
                 
         elif job_type == 'organize_tracks':
@@ -317,10 +317,9 @@ def background_job(user_id, token_info, job_type):
                 clean_data.append(tmp)
             clean_data = np.array(clean_data)
             
-            print('ready for clustering')
             num_k = len(data) // 30 + 1
             cluster_ids, centroids = kmeans(clean_data, k=num_k)
-            print('finished clustering')
+            
             from collections import defaultdict
             cluster_tracks = defaultdict(list)
             for idx, track in enumerate(data):
