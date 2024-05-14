@@ -1,0 +1,37 @@
+<!-- templates/waiting.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="/static/style.css">
+    <title>Processing...</title>
+</head>
+<body>
+    <div class="containerA">
+        <div class="intro">
+            <div class="item">
+                <h1>Your request is being processed...</h1>
+            </div>
+        </div>
+        <div class="intro">
+            <div class="item">
+                <h1>This may take a few minutes. Please do not close this window.</h1>
+            </div>
+        </div>
+    </div>
+    <script>
+        function checkStatus() {
+            fetch('/check_status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'completed') {
+                        window.location.href = '/results';
+                    } else {
+                        setTimeout(checkStatus, 5000); // check again after 5 seconds
+                    }
+                });
+        }
+        checkStatus();
+    </script>
+</body>
+</html>
