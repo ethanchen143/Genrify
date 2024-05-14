@@ -29,7 +29,6 @@ import os
 
 def analyze(data):
     print(data[0])
-    
     genres = [y for x in data for y in x['genres']]
     counter = Counter(genres)
     fav_genres = counter.most_common(5)
@@ -91,7 +90,6 @@ def analyze(data):
         f'Energy (a measure from 0.0 to 1.0 and represents perceptual intensity and activity. Typically, energetic tracks feel fast, loud, and noisy): Mean - {energy_mean}, Median - {energy_median}, Std - {energy_std}. '
         f'Danceability (describes how suitable a track is for dancing. A value of 0.0 is least danceable and 1.0 is most danceable.): Mean - {danceability_mean}, Median - {danceability_median}, Std - {danceability_std}. '
     )
-    
     print(prompt)
 
     client = anthropic.Anthropic(
@@ -121,6 +119,5 @@ def analyze(data):
         print("Another non-200-range status code was received")
         print(e.status_code)
         print(e.response)
-    
-    print(response_text)
+        
     return response_text
