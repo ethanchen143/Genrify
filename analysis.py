@@ -83,7 +83,7 @@ def analyze(data):
         f'My top 5 genres are {top_genres}. My top 10 artists are {top_artists}.'
         f'Top tags associated with my top artists are {top_tags}.'
         f'Here are the song metadata analysis statistics: '
-        f'(Cite numeric data to prove your points and be insightful about Std which represents how well spread and diverse my tastes are)'
+        f'(Cite numeric data to prove your points and be insightful about standard deviation which represents how well spread and diverse my tastes are)'
         f"(Analyze deeper, don't just report the facts directly, connect the dots with my top genres and artists, engage your audience)"
         f'Popularity (out of 100, with higher score being more popular): Mean - {pop_mean}, Median - {pop_median}, Std - {pop_std}. '
         f'Tempo (in BPM): Mean - {tempo_mean}, Median - {tempo_median}, Std - {tempo_std}. '
@@ -103,7 +103,7 @@ def analyze(data):
             model="claude-3-haiku-20240307",
             max_tokens=4000,
             temperature=0.5,
-            system="You are an insightful music taste analyzer. Talk to me like a person and don't use big words. Don't use any filler words or connection phrase (like 'furthermore'). Use stripped to the core language and try to start sentences with 'You'",
+            system="You are an insightful music taste analyzer. Talk like a music critic. Try to start all sentences with 'You'",
             messages=[
                 {"role": "user", "content": prompt}
             ]
