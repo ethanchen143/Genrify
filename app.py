@@ -74,7 +74,7 @@ def logout():
 
 def background_job(user_id, token_info, job_type):
     sp = spotipy.Spotify(auth=token_info['access_token'])
-    status_key = f"{user_id}_status_{job_type}"
+    print(f'we are in background_job function, job_type = {job_type}')
     try:
         if job_type == 'get_tracks':
             try:
@@ -95,9 +95,9 @@ def background_job(user_id, token_info, job_type):
                             break
                         offset += limit
                     redis_client.setex(user_id, 900, json.dumps(all_tracks))
-                redis_client.setex(status_key, 900, 'completed')
+                redis_client.set(f"{user_id}_status", 'completed')
             except Exception as e:
-                redis_client.setex(status_key, 900, f'error: {str(e)}')
+                redis_client.set(f"{user_id}_status", f'error: {str(e)}')
                 
         elif job_type == 'analyze_tracks':
             try:
@@ -179,9 +179,9 @@ def background_job(user_id, token_info, job_type):
                     ana_text = analyze(prepared_data)
                     redis_client.setex(an_text_id, 900, json.dumps(ana_text))
                 
-                redis_client.setex(status_key, 900, 'completed')
+                redis_client.set(f"{user_id}_status", 'completed')
             except Exception as e:
-                redis_client.setex(status_key, 900, f'error: {str(e)}')
+                redis_client.set(f"{user_id}_status", f'error: {str(e)}')
                 
         elif job_type == 'organize_tracks':
             try:
@@ -206,12 +206,74 @@ def background_job(user_id, token_info, job_type):
                 
                 ana_id = user_id + 'AN'
                 if not redis_client.exists(ana_id):
-                    background_job(user_id, token_info, 'analyze_tracks')
+                    tracks = redis_client.get(user_id) # Copied over from analyze tracks. necessary because of status update. 
+                    tracks = json.loads(tracks.decode('utf-8'))
+                    def simplify_data(data):
+                        simplified_data = []
+                        for entry in data:
+                            track_info = entry['track']
+                            simplified_track = {
+                                'added_at': entry['added_at'][:10],
+                                'album_name': track_info['album']['name'],
+                                'album_release_date': track_info['album']['release_date'],
+                                'artist_names': ', '.join(artist['name'] for artist in track_info['artists']),
+                                'artist_id': track_info['artists'][0]['id'],
+                                'track_name': track_info['name'],
+                                'track_popularity': track_info['popularity'],
+                                'id': track_info['id']
+                            }
+                            simplified_data.append(simplified_track)
+                        return simplified_data
+                    data = simplify_data(tracks)
+                    # Not Considering Rate Limit Here.
+                    for i in range(0, len(data), 50):
+                        ids = [track['artist_id'] for track in data[i:i+50]]
+                        artists = sp.artists(ids)['artists']
+                        
+                        for track, artist in zip(data[i:i+50], artists):
+                            track['genres'] = artist.get('genres', [])
+                            
+                        ids = [track['id'] for track in data[i:i+50]]
+                        features = sp.audio_features(ids)
+                        
+                        for track, feature in zip(data[i:i+50], features):
+                            track['acousticness'] = feature['acousticness']
+                            track['danceability'] = feature['danceability']
+                            track['energy'] = feature['energy']
+                            track['instrumentalness'] = feature['instrumentalness']
+                            track['liveness'] = feature['liveness']
+                            track['loudness'] = feature['loudness']
+                            track['speechiness'] = feature['speechiness']
+                            track['tempo'] = feature['tempo']
+                            track['valence'] = feature['valence']
+                            track['key'] = feature['key']
+                            track['mode'] = feature['mode']
+                            track['time_signature'] = feature['time_signature']
+                                
+                    from genre_map import convert
+                    import copy
+                    prepared_data = copy.deepcopy(data)
+                    for track in prepared_data:
+                        processed = []
+                        for g in track['genres']:
+                            processed.append(convert(g))
+                        processed = list(set(processed))
+                        if 'Others' in processed and len(processed) != 1:
+                            processed.remove('Others')
+                        track['genres'] = processed
+                        order = ["Soundtracks", "Classical", "Experimental", "Jazz", "Country/Folk", "Funk", "Indie", "Rock", "RnB/Soul", "Hip-Hop", "Electronic", "Pop", "Others"]
+                        for genre in order:
+                            if genre in processed:
+                                track['genres'] = genre
+                                break
+                    
+                    redis_client.setex(ana_id, 900, json.dumps(prepared_data))
 
                 data = redis_client.get(ana_id)
                 data = json.loads(data.decode('utf-8'))
                 
                 print(data[0])
+                
                 dates = []
                 for d in data:
                     try:
@@ -243,16 +305,6 @@ def background_job(user_id, token_info, job_type):
                     "Experimental": 200,
                     "Others": 250,
                 }
-                
-                print(data)
-                from genre_map import convert
-                for track in data:
-                    processed = track['genres']
-                    order = ["Soundtracks", "Classical", "Experimental", "Jazz", "Country/Folk", "Funk", "Indie", "Rock", "RnB/Soul", "Hip-Hop", "Electronic", "Pop", "Others"]
-                    for genre in order:
-                        if genre in processed:
-                            track['genres'] = genre
-                            break
                         
                 genres = [genre_score[d['genres']] * genre_weights for d in data]
                 genres = [0 if np.isnan(x) else x for x in genres]
@@ -274,8 +326,6 @@ def background_job(user_id, token_info, job_type):
                 
                 num_k = len(data) // 30 + 1
                 cluster_ids, centroids = kmeans(clean_data, k=num_k)
-                
-                print(centroids[0])
 
                 from collections import defaultdict
                 cluster_tracks = defaultdict(list)
@@ -313,24 +363,25 @@ def background_job(user_id, token_info, job_type):
                         if tracks:
                             sp.playlist_add_items(playlist_ids[cluster_id], tracks)
                 
-                redis_client.setex(status_key, 900, 'completed')
+                redis_client.set(f"{user_id}_status", 'completed')
             except Exception as e:
-                redis_client.setex(status_key, 900, f'error: {str(e)}')
+                redis_client.set(f"{user_id}_status", f'error: {str(e)}')
                 
-        redis_client.setex(status_key, 900, 'completed')
+        redis_client.set(f"{user_id}_status", 'completed')
+        
     except Exception as e:
-        redis_client.setex(status_key, 900, f'error: {str(e)}')
+        redis_client.set(f"{user_id}_status", f'error: {str(e)}')
 
 @app.route('/start_task/<job_type>')
 def start_task(job_type):
     if 'token_info' not in session or 'access_token' not in session['token_info']:
         return redirect(url_for('index'))
     
-    print(f'starting task, job_type: {job_type}')
     user_id = session['user_id']
     token_info = session['token_info']
     redis_client.set(f"{user_id}_status", 'pending')
 
+    print(f'starting task, job_type: {job_type}')
     threading.Thread(target=background_job, args=(user_id, token_info, job_type)).start()
     
     return render_template('waiting.html', job_type=job_type)
@@ -351,9 +402,11 @@ def organize_tracks():
 @app.route('/check_status')
 def check_status():
     user_id = session['user_id']
-    job_type = request.args.get('job_type')
-    status = redis_client.get(f"{user_id}_status_{job_type}").decode('utf-8')
+    status = redis_client.get(f"{user_id}_status").decode('utf-8')
+    
     if status == 'completed':
+        job_type = request.args.get('job_type')
+        print(f'checking status, job_type: {job_type}')
         return jsonify({'status': 'completed', 'job_type': job_type})
     elif 'error' in status:
         return jsonify({'status': 'error', 'details': status})
@@ -365,6 +418,7 @@ def results():
     user_id = session['user_id']
     job_type = request.args.get('type')
     
+    print(f'results: job_type: {job_type}')
     if job_type == 'get_tracks':
         all_tracks = redis_client.get(user_id)
         if all_tracks:
