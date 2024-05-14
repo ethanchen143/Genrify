@@ -72,10 +72,6 @@ def logout():
     session.clear()
     return redirect('https://accounts.spotify.com/en/logout')
 
-
-
-
-status_lock = threading.Lock()
 def background_job(user_id, token_info, job_type):
     sp = spotipy.Spotify(auth=token_info['access_token'])
     print(f"Starting {job_type} for user {user_id}")
@@ -266,7 +262,8 @@ def background_job(user_id, token_info, job_type):
                     if genre in track['genres']:
                         track['genres'] = genre
                         break
-                track['genres'] = 'Others'
+                if track['genres'] == []:
+                    track['genres'] = 'Others'
             print(f'first five prepared data:{data[:5]}')
             
             dates = []
@@ -360,14 +357,12 @@ def background_job(user_id, token_info, job_type):
                     if tracks:
                         sp.playlist_add_items(playlist_ids[cluster_id], tracks)
                 
-        with status_lock:
-            redis_client.set(f"{user_id}_status", 'completed')
-            print(f"Task {job_type} completed for user {user_id}")
+        redis_client.set(f"{user_id}_status", 'completed')
+        print(f"Task {job_type} completed for user {user_id}")
             
     except Exception as e:
-        with status_lock:
-            print(f"Error in {job_type} for user {user_id}: {str(e)}")
-            redis_client.set(f"{user_id}_status", f'error: {str(e)}')
+        print(f"Error in {job_type} for user {user_id}: {str(e)}")
+        redis_client.set(f"{user_id}_status", f'error: {str(e)}')
 
 @app.route('/start_task/<job_type>')
 def start_task(job_type):
