@@ -23,7 +23,7 @@
     <script>
         function checkStatus() {
             const jobType = new URLSearchParams(window.location.search).get('job_type');
-            console.log(job_type)
+            console.log('Job Type:', jobType);
             fetch(`/check_status?job_type=${jobType}`)
                 .then(response => {
                     if (!response.ok) {
