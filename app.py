@@ -9,6 +9,7 @@ from uuid import uuid4
 import numpy as np
 import os
 import threading
+import logging
 
 app = Flask(__name__)
 app.config['SESSION_COOKIE_NAME'] = 'spotify_login_session'
@@ -23,6 +24,8 @@ SCOPE = 'user-library-read playlist-read-private playlist-modify-private playlis
 from urllib.parse import urlparse
 redis_url = urlparse(os.getenv('REDISCLOUD_URL'))
 redis_client = redis.Redis(host=redis_url.hostname, port=redis_url.port, password=redis_url.password)
+
+logging.basicConfig(level=logging.DEBUG)
 
 @app.after_request
 def add_header(response):
@@ -82,6 +85,7 @@ def get_tracks():
     redis_client.set(job_id, 'pending')
     
     def background_job(user_id, token_info):
+        logging.debug(f"Starting background job for get_tracks with user_id {user_id}")
         try:
             sp = spotipy.Spotify(auth=token_info['access_token'])
             need_to_refresh = True
@@ -102,12 +106,14 @@ def get_tracks():
                     offset += limit
                 redis_client.setex(user_id, 900, json.dumps(all_tracks))
             redis_client.set(job_id, 'completed')
+            logging.debug(f"Completed background job for get_tracks with user_id {user_id}")
         except Exception as e:
             redis_client.set(job_id, f'error: {str(e)}')
+            logging.error(f"Error in background job for get_tracks with user_id {user_id}: {str(e)}")
 
     threading.Thread(target=background_job, args=(user_id, session['token_info'])).start()
     
-    return render_template('waiting.html')
+    return render_template('waiting.html', job_type='get_tracks')
 
 @app.route('/analyze_tracks')
 def analyze_tracks():
@@ -117,6 +123,7 @@ def analyze_tracks():
     redis_client.set(job_id, 'pending')
     
     def background_job(user_id, token_info):
+        logging.debug(f"Starting background job for analyze_tracks with user_id {user_id}")
         try:
             need_to_refresh = True
             if redis_client.exists(ana_id):
@@ -203,23 +210,14 @@ def analyze_tracks():
                 redis_client.setex(an_text_id, 900, json.dumps(ana_text))
             
             redis_client.set(job_id, 'completed')
+            logging.debug(f"Completed background job for analyze_tracks with user_id {user_id}")
         except Exception as e:
             redis_client.set(job_id, f'error: {str(e)}')
+            logging.error(f"Error in background job for analyze_tracks with user_id {user_id}: {str(e)}")
 
     threading.Thread(target=background_job, args=(user_id, session['token_info'])).start()
     
-    return render_template('waiting.html')
-
-import faiss
-def kmeans(data, k, max_iterations=500):
-    num_clusters = k
-    dimension = data.shape[1]
-    initial_centroids = np.random.rand(num_clusters, dimension).astype('float32')
-    kmeans = faiss.Kmeans(dimension, num_clusters, niter=max_iterations, verbose=True)
-    kmeans.centroids = initial_centroids  # Initialize centroids
-    kmeans.train(data)
-    D, I = kmeans.index.search(data, 1)
-    return I.flatten(), kmeans.centroids
+    return render_template('waiting.html', job_type='analyze_tracks')
 
 @app.route('/organize_tracks')
 def organize_tracks():
@@ -228,6 +226,7 @@ def organize_tracks():
     redis_client.set(job_id, 'pending')
     
     def background_job(user_id, token_info):
+        logging.debug(f"Starting background job for organize_tracks with user_id {user_id}")
         try:
             dates_weight = 5
             genre_weights = 1
@@ -350,12 +349,14 @@ def organize_tracks():
                         sp.playlist_add_items(playlist_ids[cluster_id], tracks)
             
             redis_client.set(job_id, 'completed')
+            logging.debug(f"Completed background job for organize_tracks with user_id {user_id}")
         except Exception as e:
             redis_client.set(job_id, f'error: {str(e)}')
+            logging.error(f"Error in background job for organize_tracks with user_id {user_id}: {str(e)}")
 
     threading.Thread(target=background_job, args=(user_id, session['token_info'])).start()
-
-    return render_template('waiting.html')
+    
+    return render_template('waiting.html', job_type='organize_tracks')
 
 @app.route('/check_status')
 def check_status():
@@ -364,18 +365,21 @@ def check_status():
     job_id_analyze_tracks = f"analyze_tracks_{user_id}"
     job_id_organize_tracks = f"organize_tracks_{user_id}"
     
-    statuses = {
-        'get_tracks': redis_client.get(job_id_get_tracks).decode('utf-8'),
-        'analyze_tracks': redis_client.get(job_id_analyze_tracks).decode('utf-8'),
-        'organize_tracks': redis_client.get(job_id_organize_tracks).decode('utf-8'),
-    }
-    
-    if all(status == 'completed' for status in statuses.values()):
-        return jsonify({'status': 'completed'})
-    elif any('error' in status for status in statuses.values()):
-        return jsonify({'status': 'error', 'details': statuses})
-    else:
-        return jsonify({'status': 'pending'})
+    try:
+        statuses = {
+            'get_tracks': redis_client.get(job_id_get_tracks).decode('utf-8') if redis_client.exists(job_id_get_tracks) else 'not_started',
+            'analyze_tracks': redis_client.get(job_id_analyze_tracks).decode('utf-8') if redis_client.exists(job_id_analyze_tracks) else 'not_started',
+            'organize_tracks': redis_client.get(job_id_organize_tracks).decode('utf-8') if redis_client.exists(job_id_organize_tracks) else 'not_started',
+        }
+        if all(status == 'completed' for status in statuses.values()):
+            return jsonify({'status': 'completed'})
+        elif any('error' in status for status in statuses.values()):
+            return jsonify({'status': 'error', 'details': statuses})
+        else:
+            return jsonify({'status': 'pending'})
+    except Exception as e:
+        logging.error(f"Error in check_status: {str(e)}")
+        return jsonify({'status': 'error', 'details': str(e)})
 
 @app.route('/results')
 def results():
@@ -394,5 +398,5 @@ def results():
     elif result_type == 'organize_tracks':
         return render_template('message.html', text="Playlists created, check them out on your Spotify app!")
 
-# if __name__ == '__main__':
-#     app.run(debug=True)
+if __name__ == '__main__':
+    app.run(debug=True)
