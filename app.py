@@ -205,6 +205,7 @@ def background_job(user_id, token_info, job_type):
                 acoustic_weights = 2.5
                 
                 ana_id = user_id + 'AN'
+                print("start organize tracks")
                 if not redis_client.exists(ana_id):
                     tracks = redis_client.get(user_id) # Copied over from analyze tracks. necessary because of status update. 
                     tracks = json.loads(tracks.decode('utf-8'))
@@ -266,13 +267,13 @@ def background_job(user_id, token_info, job_type):
                             if genre in processed:
                                 track['genres'] = genre
                                 break
-                    
+                            
                     redis_client.setex(ana_id, 900, json.dumps(prepared_data))
 
                 data = redis_client.get(ana_id)
                 data = json.loads(data.decode('utf-8'))
                 
-                print(data[0])
+                print(f'first data:{data[0]}')
                 
                 dates = []
                 for d in data:
@@ -324,9 +325,10 @@ def background_job(user_id, token_info, job_type):
                     clean_data.append(tmp)
                 clean_data = np.array(clean_data)
                 
+                print('ready for clustering')
                 num_k = len(data) // 30 + 1
                 cluster_ids, centroids = kmeans(clean_data, k=num_k)
-
+                print('finished clustering')
                 from collections import defaultdict
                 cluster_tracks = defaultdict(list)
                 for idx, track in enumerate(data):
@@ -380,7 +382,10 @@ def start_task(job_type):
     user_id = session['user_id']
     token_info = session['token_info']
     redis_client.set(f"{user_id}_status", 'pending')
-
+    try:
+        print(redis_client.get(f"{user_id}_status").decode('utf-8'))
+    except:
+        print('noooo')
     print(f'starting task, job_type: {job_type}')
     threading.Thread(target=background_job, args=(user_id, token_info, job_type)).start()
     
