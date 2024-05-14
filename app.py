@@ -129,6 +129,7 @@ def background_job(user_id, token_info, job_type):
                     
                     data = simplify_data(tracks)
                     
+                    # Not Considering Rate Limit Here.
                     for i in range(0, len(data), 50):
                         ids = [track['artist_id'] for track in data[i:i+50]]
                         artists = sp.artists(ids)['artists']
@@ -152,7 +153,6 @@ def background_job(user_id, token_info, job_type):
                             track['key'] = feature['key']
                             track['mode'] = feature['mode']
                             track['time_signature'] = feature['time_signature']
-                    redis_client.setex(ana_id, 900, json.dumps(data))
                 
                 # Get Cleaned Genres
                 from genre_map import convert
@@ -166,6 +166,8 @@ def background_job(user_id, token_info, job_type):
                     if 'Others' in processed and len(processed) != 1:
                         processed.remove('Others')
                     track['genres'] = processed
+                
+                redis_client.setex(ana_id, 900, json.dumps(prepared_data))
 
                 # Analyze data->text, with cacheing
                 from analysis import analyze
@@ -392,6 +394,34 @@ def results():
     
     else:
         return render_template('message.html', text=f"Invalid job type: {job_type}")
+    
+@app.route('/delete_playlists')
+def delete_user_playlists():
+    sp = spotipy.Spotify(auth=session['token_info']['access_token'])
+    user_id = session['user_id']
+    playlists = sp.current_user_playlists()
+    to_delete = []
+
+    while playlists:
+        for playlist in playlists['items']:
+            if playlist['name'].startswith('Genrify'):
+                to_delete.append(playlist['id'])
+        if playlists['next']:
+            playlists = sp.next(playlists)
+        else:
+            playlists = None
+
+    # Batch delete playlists
+    batch_size = 100 
+    total_deleted = 0
+
+    for i in range(0, len(to_delete), batch_size):
+        batch = to_delete[i:i + batch_size]
+        for playlist_id in batch:
+            sp.user_playlist_unfollow(user_id, playlist_id)
+        total_deleted += len(batch)
+
+    return render_template('message.html',text = f"{total_deleted} playlists deleted, you can log out and generate again.")
 
 if __name__ == '__main__':
     app.run(debug=True)
