@@ -18,6 +18,7 @@
                 <h1>This may take a few minutes. Please do not close this window.</h1>
             </div>
         </div>
+        <div id="error-message" style="color: red;"></div>
     </div>
     <script>
         function checkStatus() {
@@ -25,12 +26,23 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'completed') {
-                        window.location.href = '/results';
+                        window.location.href = '/results?type=' + getResultType();
+                    } else if (data.status === 'error') {
+                        document.getElementById('error-message').innerText = 'An error occurred: ' + JSON.stringify(data.details);
                     } else {
                         setTimeout(checkStatus, 5000); // check again after 5 seconds
                     }
+                })
+                .catch(error => {
+                    document.getElementById('error-message').innerText = 'An error occurred: ' + error;
                 });
         }
+        
+        function getResultType() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('type');
+        }
+        
         checkStatus();
     </script>
 </body>
