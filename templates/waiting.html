@@ -22,7 +22,9 @@
     </div>
     <script>
         function checkStatus() {
-            fetch('/check_status')
+            const jobType = new URLSearchParams(window.location.search).get('job_type');
+            console.log(job_type)
+            fetch(`/check_status?job_type=${jobType}`)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('Network response was not ok');
@@ -31,8 +33,7 @@
                 })
                 .then(data => {
                     if (data.status === 'completed') {
-                        const jobType = new URLSearchParams(window.location.search).get('job_type');
-                        window.location.href = `/results?type=${jobType}`;
+                        window.location.href = `/results?type=${data.job_type}`;
                     } else if (data.status === 'error') {
                         document.getElementById('error-message').innerText = 'An error occurred: ' + data.details;
                     } else {
@@ -43,7 +44,6 @@
                     document.getElementById('error-message').innerText = 'An error occurred: ' + error;
                 });
         }
-
         checkStatus();
     </script>
 </body>

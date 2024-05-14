@@ -384,7 +384,7 @@ def results():
         return render_template('message.html', text="Playlists created, check them out on your Spotify app!")
     
     else:
-        return render_template('message.html', text="Invalid job type.")
+        return render_template('message.html', text=f"Invalid job type: {job_type}")
 
 if __name__ == '__main__':
     app.run(debug=True)
