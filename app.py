@@ -301,8 +301,8 @@ def background_job(user_id, token_info, job_type):
                 "Others": 250,
             }
 
-            genres = [250 if np.isnan(x) else x for x in genres]
             genres = [genre_score[d['genres']] * genre_weights for d in data]
+            genres = [250 if np.isnan(x) else x for x in genres]
 
 
             popularities = [d['track_popularity'] / 100 for d in data]
