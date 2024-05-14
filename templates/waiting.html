@@ -21,7 +21,7 @@
     </div>
     <script>
         function checkStatus() {
-            const jobType = {{ job_type }};
+            const jobType = {{ job_type | tojson }};
             console.log('Job Type:', jobType);
             fetch(`/check_status?job_type=${jobType}`)
                 console.log('Checking status...');
@@ -35,7 +35,7 @@
                     console.log('Status:', data.status);
                     console.log('Data:', data);
                     if (data.status === 'completed') {
-                        window.location.href = `/results?type=${data.job_type}`;
+                        window.location.href = `/results?type=${jobType}`;
                     } else if (data.status === 'error') {
                         document.getElementById('error-message').innerText = 'An error occurred: ' + data.details;
                     } else {
