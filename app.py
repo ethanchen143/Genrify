@@ -156,7 +156,9 @@ def background_job(user_id, token_info, job_type):
                 
                 # Get Cleaned Genres
                 from genre_map import convert
-                for track in data:
+                import copy
+                prepared_data = copy.deepcopy(data)
+                for track in prepared_data:
                     processed = []
                     for g in track['genres']:
                         processed.append(convert(g))
@@ -165,7 +167,7 @@ def background_job(user_id, token_info, job_type):
                         processed.remove('Others')
                     track['genres'] = processed
                 
-                redis_client.setex(ana_id, 900, json.dumps(data))
+                redis_client.setex(ana_id, 900, json.dumps(prepared_data))
 
                 # Analyze data->text, with cacheing
                 from analysis import analyze
@@ -174,7 +176,7 @@ def background_job(user_id, token_info, job_type):
                     ana_text = redis_client.get(an_text_id)
                     ana_text = json.loads(ana_text.decode('utf-8'))
                 else:
-                    ana_text = analyze(data)
+                    ana_text = analyze(prepared_data)
                     redis_client.setex(an_text_id, 900, json.dumps(ana_text))
                 
                 redis_client.set(f"{user_id}_status", 'completed')
@@ -205,6 +207,7 @@ def background_job(user_id, token_info, job_type):
                 ana_id = user_id + 'AN'
                 if not redis_client.exists(ana_id):
                     background_job(user_id, token_info, 'analyze_tracks')
+
                 data = redis_client.get(ana_id)
                 data = json.loads(data.decode('utf-8'))
                 
@@ -239,7 +242,16 @@ def background_job(user_id, token_info, job_type):
                     "Experimental": 200,
                     "Others": 250,
                 }
-
+                
+                print(data)
+                from genre_map import convert
+                for track in data:
+                    processed = track['genres']
+                    order = ["Soundtracks", "Classical", "Experimental", "Jazz", "Country/Folk", "Funk", "Indie", "Rock", "RnB/Soul", "Hip-Hop", "Electronic", "Pop", "Others"]
+                    for genre in order:
+                        if genre in processed:
+                            track['genres'] = genre
+                            break
                 genres = [genre_score[d['genres']] * genre_weights for d in data]
                 genres = [0 if np.isnan(x) else x for x in genres]
 
@@ -256,7 +268,6 @@ def background_job(user_id, token_info, job_type):
                     tmp.append(data[idx]['energy'] * energy_weights)
                     tmp.append(data[idx]['acousticness'] * acoustic_weights)
                     clean_data.append(tmp)
-                 
                 clean_data = np.array(clean_data)
                 
                 num_k = len(data) // 30 + 1
