@@ -218,7 +218,7 @@ def background_job(user_id, token_info, job_type):
                         simplified_data.append(simplified_track)
                     return simplified_data
                 data = simplify_data(tracks)
-                # Not Considering Rate Limit Here.
+                # Not Considering Rate Limit Here
                 for i in range(0, len(data), 50):
                     ids = [track['artist_id'] for track in data[i:i+50]]
                     artists = sp.artists(ids)['artists']
@@ -255,19 +255,19 @@ def background_job(user_id, token_info, job_type):
                         processed.remove('Others')
                     track['genres'] = processed
 
-                        
                 redis_client.setex(ana_id, 900, json.dumps(prepared_data))
 
             data = redis_client.get(ana_id)
             data = json.loads(data.decode('utf-8'))
+            print(f'first five data:{data[:5]}')
             for track in data:
                 order = ["Soundtracks", "Classical", "Experimental", "Jazz", "Country/Folk", "Funk", "Indie", "Rock", "RnB/Soul", "Hip-Hop", "Electronic", "Pop", "Others"]
                 for genre in order:
                     if genre in track['genres']:
                         track['genres'] = genre
                         break
-            
-            print(f'first data:{data[0]}')
+                track['genres'] = 'Others'
+            print(f'first five prepared data:{data[:5]}')
             
             dates = []
             for d in data:
@@ -300,9 +300,10 @@ def background_job(user_id, token_info, job_type):
                 "Experimental": 200,
                 "Others": 250,
             }
-                    
+
+            genres = [250 if np.isnan(x) else x for x in genres]
             genres = [genre_score[d['genres']] * genre_weights for d in data]
-            genres = [0 if np.isnan(x) else x for x in genres]
+
 
             popularities = [d['track_popularity'] / 100 for d in data]
 
