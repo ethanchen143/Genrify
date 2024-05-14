@@ -72,6 +72,23 @@ def logout():
     session.clear()
     return redirect('https://accounts.spotify.com/en/logout')
 
+def simplify_data(data):
+    simplified_data = []
+    for entry in data:
+        track_info = entry['track']
+        simplified_track = {
+            'added_at': entry['added_at'][:10],
+            'album_name': track_info['album']['name'],
+            'album_release_date': track_info['album']['release_date'],
+            'artist_names': ', '.join(artist['name'] for artist in track_info['artists']),
+            'artist_id': track_info['artists'][0]['id'],
+            'track_name': track_info['name'],
+            'track_popularity': track_info['popularity'],
+            'id': track_info['id']
+        }
+        simplified_data.append(simplified_track)
+    return simplified_data
+
 def background_job(user_id, token_info, job_type):
     sp = spotipy.Spotify(auth=token_info['access_token'])
     try:
@@ -97,28 +114,13 @@ def background_job(user_id, token_info, job_type):
             ana_id = user_id + 'AN'
             need_to_refresh = True
             if redis_client.exists(ana_id):
+                print('retrived cache')
                 data = redis_client.get(ana_id)
                 data = json.loads(data.decode('utf-8'))
                 need_to_refresh = False
             if need_to_refresh:
                 tracks = redis_client.get(user_id)
                 tracks = json.loads(tracks.decode('utf-8'))
-                def simplify_data(data):
-                    simplified_data = []
-                    for entry in data:
-                        track_info = entry['track']
-                        simplified_track = {
-                            'added_at': entry['added_at'][:10],
-                            'album_name': track_info['album']['name'],
-                            'album_release_date': track_info['album']['release_date'],
-                            'artist_names': ', '.join(artist['name'] for artist in track_info['artists']),
-                            'artist_id': track_info['artists'][0]['id'],
-                            'track_name': track_info['name'],
-                            'track_popularity': track_info['popularity'],
-                            'id': track_info['id']
-                        }
-                        simplified_data.append(simplified_track)
-                    return simplified_data
                 data = simplify_data(tracks)
                 
                 # Not Considering Rate Limit Here.
@@ -160,7 +162,8 @@ def background_job(user_id, token_info, job_type):
                     track['genres'] = processed
                 
                 redis_client.setex(ana_id, 900, json.dumps(prepared_data))
-
+            
+            print(data[0])
             # Analyze data->text, with cacheing
             from analysis import analyze
             an_text_id = user_id + 'AN-Text'
@@ -193,26 +196,9 @@ def background_job(user_id, token_info, job_type):
             acoustic_weights = 2.5
             
             ana_id = user_id + 'AN'
-            print("start organizing tracks")
             if not redis_client.exists(ana_id):
                 tracks = redis_client.get(user_id) # Copied over from analyze tracks. necessary because of status update. 
                 tracks = json.loads(tracks.decode('utf-8'))
-                def simplify_data(data):
-                    simplified_data = []
-                    for entry in data:
-                        track_info = entry['track']
-                        simplified_track = {
-                            'added_at': entry['added_at'][:10],
-                            'album_name': track_info['album']['name'],
-                            'album_release_date': track_info['album']['release_date'],
-                            'artist_names': ', '.join(artist['name'] for artist in track_info['artists']),
-                            'artist_id': track_info['artists'][0]['id'],
-                            'track_name': track_info['name'],
-                            'track_popularity': track_info['popularity'],
-                            'id': track_info['id']
-                        }
-                        simplified_data.append(simplified_track)
-                    return simplified_data
                 data = simplify_data(tracks)
                 # Not Considering Rate Limit Here
                 for i in range(0, len(data), 50):
@@ -355,7 +341,8 @@ def background_job(user_id, token_info, job_type):
                 else:
                     if tracks:
                         sp.playlist_add_items(playlist_ids[cluster_id], tracks)
-                
+            
+            print(f'done organizing, the datas are like {data[:5]}')
         redis_client.set(f"{user_id}_status", 'completed')
         print(f"Task {job_type} completed for user {user_id}")
             
@@ -371,8 +358,6 @@ def start_task(job_type):
     user_id = session['user_id']
     token_info = session['token_info']
     redis_client.set(f"{user_id}_status", 'pending')
-    print(redis_client.get(f"{user_id}_status").decode('utf-8'))
-    print(f'starting task, job_type: {job_type}')
     thread = threading.Thread(target=background_job, args=(user_id, token_info, job_type))
     thread.start()
     return render_template('waiting.html', job_type=job_type)
@@ -394,7 +379,6 @@ def organize_tracks():
 def check_status():
     user_id = session['user_id']
     status = redis_client.get(f"{user_id}_status").decode('utf-8')
-    
     if status == 'completed':
         job_type = request.args.get('job_type')
         print(f'checking status, job_type: {job_type}')
