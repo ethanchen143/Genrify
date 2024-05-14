@@ -74,7 +74,7 @@ def logout():
 
 def background_job(user_id, token_info, job_type):
     sp = spotipy.Spotify(auth=token_info['access_token'])
-    print(f'we are in background_job function, job_type = {job_type}')
+    status_key = f"{user_id}_status_{job_type}"
     try:
         if job_type == 'get_tracks':
             try:
@@ -95,9 +95,9 @@ def background_job(user_id, token_info, job_type):
                             break
                         offset += limit
                     redis_client.setex(user_id, 900, json.dumps(all_tracks))
-                redis_client.set(f"{user_id}_status", 'completed')
+                redis_client.setex(status_key, 900, 'completed')
             except Exception as e:
-                redis_client.set(f"{user_id}_status", f'error: {str(e)}')
+                redis_client.setex(status_key, 900, f'error: {str(e)}')
                 
         elif job_type == 'analyze_tracks':
             try:
@@ -179,9 +179,9 @@ def background_job(user_id, token_info, job_type):
                     ana_text = analyze(prepared_data)
                     redis_client.setex(an_text_id, 900, json.dumps(ana_text))
                 
-                redis_client.set(f"{user_id}_status", 'completed')
+                redis_client.setex(status_key, 900, 'completed')
             except Exception as e:
-                redis_client.set(f"{user_id}_status", f'error: {str(e)}')
+                redis_client.setex(status_key, 900, f'error: {str(e)}')
                 
         elif job_type == 'organize_tracks':
             try:
@@ -211,6 +211,7 @@ def background_job(user_id, token_info, job_type):
                 data = redis_client.get(ana_id)
                 data = json.loads(data.decode('utf-8'))
                 
+                print(data[0])
                 dates = []
                 for d in data:
                     try:
@@ -252,6 +253,7 @@ def background_job(user_id, token_info, job_type):
                         if genre in processed:
                             track['genres'] = genre
                             break
+                        
                 genres = [genre_score[d['genres']] * genre_weights for d in data]
                 genres = [0 if np.isnan(x) else x for x in genres]
 
@@ -272,6 +274,8 @@ def background_job(user_id, token_info, job_type):
                 
                 num_k = len(data) // 30 + 1
                 cluster_ids, centroids = kmeans(clean_data, k=num_k)
+                
+                print(centroids[0])
 
                 from collections import defaultdict
                 cluster_tracks = defaultdict(list)
@@ -309,14 +313,13 @@ def background_job(user_id, token_info, job_type):
                         if tracks:
                             sp.playlist_add_items(playlist_ids[cluster_id], tracks)
                 
-                redis_client.set(f"{user_id}_status", 'completed')
+                redis_client.setex(status_key, 900, 'completed')
             except Exception as e:
-                redis_client.set(f"{user_id}_status", f'error: {str(e)}')
+                redis_client.setex(status_key, 900, f'error: {str(e)}')
                 
-        redis_client.set(f"{user_id}_status", 'completed')
-        
+        redis_client.setex(status_key, 900, 'completed')
     except Exception as e:
-        redis_client.set(f"{user_id}_status", f'error: {str(e)}')
+        redis_client.setex(status_key, 900, f'error: {str(e)}')
 
 @app.route('/start_task/<job_type>')
 def start_task(job_type):
@@ -348,11 +351,9 @@ def organize_tracks():
 @app.route('/check_status')
 def check_status():
     user_id = session['user_id']
-    status = redis_client.get(f"{user_id}_status").decode('utf-8')
-    
+    job_type = request.args.get('job_type')
+    status = redis_client.get(f"{user_id}_status_{job_type}").decode('utf-8')
     if status == 'completed':
-        job_type = request.args.get('job_type')
-        print(f'checking status, job_type: {job_type}')
         return jsonify({'status': 'completed', 'job_type': job_type})
     elif 'error' in status:
         return jsonify({'status': 'error', 'details': status})
@@ -364,7 +365,6 @@ def results():
     user_id = session['user_id']
     job_type = request.args.get('type')
     
-    print(f'results: job_type: {job_type}')
     if job_type == 'get_tracks':
         all_tracks = redis_client.get(user_id)
         if all_tracks:
