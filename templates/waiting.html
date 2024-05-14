@@ -22,7 +22,9 @@
     <script>
         function checkStatus() {
             const jobType = {{ job_type }};
+            console.log('Job Type:', jobType);
             fetch(`/check_status?job_type=${jobType}`)
+                console.log('Checking status...');
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('Network response was not ok');
@@ -30,8 +32,10 @@
                     return response.json();
                 })
                 .then(data => {
+                    console.log('Status:', data.status);
+                    console.log('Data:', data);
                     if (data.status === 'completed') {
-                        window.location.href = `/results?type=${jobType}`;
+                        window.location.href = `/results?type=${data.job_type}`;
                     } else if (data.status === 'error') {
                         document.getElementById('error-message').innerText = 'An error occurred: ' + data.details;
                     } else {

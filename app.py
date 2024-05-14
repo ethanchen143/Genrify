@@ -356,7 +356,7 @@ def check_status():
     
     if status == 'completed':
         job_type = request.args.get('job_type')
-        print(f'chekcing status, job_type: {job_type}')
+        print(f'checking status, job_type: {job_type}')
         return jsonify({'status': 'completed', 'job_type': job_type})
     elif 'error' in status:
         return jsonify({'status': 'error', 'details': status})
