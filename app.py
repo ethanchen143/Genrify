@@ -376,7 +376,6 @@ def start_task(job_type):
     print(f'starting task, job_type: {job_type}')
     thread = threading.Thread(target=background_job, args=(user_id, token_info, job_type))
     thread.start()
-    thread.join()
     return render_template('waiting.html', job_type=job_type)
 
 
@@ -411,7 +410,6 @@ def results():
     user_id = session['user_id']
     job_type = request.args.get('type')
     
-    print(f'results: job_type: {job_type}')
     if job_type == 'get_tracks':
         all_tracks = redis_client.get(user_id)
         if all_tracks:
@@ -432,7 +430,7 @@ def results():
     
     elif job_type == 'organize_tracks':
         return render_template('message.html', text="Playlists created, check them out on your Spotify app!")
-    
+
     else:
         return render_template('message.html', text=f"Invalid job type: {job_type}")
     
