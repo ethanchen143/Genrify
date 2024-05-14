@@ -74,6 +74,7 @@ def logout():
 
 def background_job(user_id, token_info, job_type):
     sp = spotipy.Spotify(auth=token_info['access_token'])
+    print(f'we are in background_job function, job_type = {job_type}')
     try:
         if job_type == 'get_tracks':
             try:
@@ -97,6 +98,7 @@ def background_job(user_id, token_info, job_type):
                 redis_client.set(f"{user_id}_status", 'completed')
             except Exception as e:
                 redis_client.set(f"{user_id}_status", f'error: {str(e)}')
+                
         elif job_type == 'analyze_tracks':
             try:
                 ana_id = user_id + 'AN'
@@ -178,6 +180,7 @@ def background_job(user_id, token_info, job_type):
                 redis_client.set(f"{user_id}_status", 'completed')
             except Exception as e:
                 redis_client.set(f"{user_id}_status", f'error: {str(e)}')
+                
         elif job_type == 'organize_tracks':
             try:
                 import faiss
@@ -324,6 +327,7 @@ def start_task(job_type):
     if 'token_info' not in session or 'access_token' not in session['token_info']:
         return redirect(url_for('index'))
     
+    print(f'starting task, job_type: {job_type}')
     user_id = session['user_id']
     token_info = session['token_info']
     redis_client.set(f"{user_id}_status", 'pending')
@@ -331,6 +335,7 @@ def start_task(job_type):
     threading.Thread(target=background_job, args=(user_id, token_info, job_type)).start()
     
     return render_template('waiting.html', job_type=job_type)
+
 
 @app.route('/get_tracks')
 def get_tracks():
@@ -351,6 +356,7 @@ def check_status():
     
     if status == 'completed':
         job_type = request.args.get('job_type')
+        print(f'chekcing status, job_type: {job_type}')
         return jsonify({'status': 'completed', 'job_type': job_type})
     elif 'error' in status:
         return jsonify({'status': 'error', 'details': status})
@@ -362,6 +368,7 @@ def results():
     user_id = session['user_id']
     job_type = request.args.get('type')
     
+    print(f'results: job_type: {job_type}')
     if job_type == 'get_tracks':
         all_tracks = redis_client.get(user_id)
         if all_tracks:
