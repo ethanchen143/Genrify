@@ -229,12 +229,16 @@ def organize_tracks():
     dates = []
     # timbres = []
     for d in data:
-        if len(d['album_release_date']) == 10:
-            dates.append(datetime.strptime(d['album_release_date'],'%Y-%m-%d'))
-        elif len(d['album_release_date']) == 7:
-            dates.append(datetime.strptime(d['album_release_date'],'%Y-%m'))
-        else:
-            dates.append(datetime.strptime(d['album_release_date'],'%Y'))
+        try:
+            if len(d['album_release_date']) == 10:
+                dates.append(datetime.strptime(d['album_release_date'],'%Y-%m-%d'))
+            elif len(d['album_release_date']) == 7:
+                dates.append(datetime.strptime(d['album_release_date'],'%Y-%m'))
+            else:
+                dates.append(datetime.strptime(d['album_release_date'],'%Y'))
+        except:
+            print(d)
+            dates.append(datetime.now())
         # timbres.append(d['timbre'])
     min_date = min(dates)
     max_date = max(dates)
