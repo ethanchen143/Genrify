@@ -9,14 +9,12 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@latest/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 </head>
 <body>
-    <div class="containerA">
-        <p class="analysis-text">
-            {{text}}
-        </p>
+    <div class="containerC" style:"font-size:max(2vh,2vw)">
+        {{text}}
     </div>
     <div class="containerB">
         <div class="features">
-            <h2>The Evolution of Your Taste for Music Genres</h2>
+            <h2>The Evolution of Your Taste for Genres</h2>
         </div>
     </div>
     <div style="width:50%; margin: 20px auto;">
@@ -25,6 +23,7 @@
         <button id="replayButton" style="display:none;" onclick="location.reload()">Replay</button>
     </div>
     <script type="text/javascript">
+        // NOt being used
         function sortData(labels, data, backgroundColors) {
             const combined = labels.map((label, index) => ({
                 label: label,

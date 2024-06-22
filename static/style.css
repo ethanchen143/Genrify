@@ -1,186 +1,149 @@
 body {
-    font-family: 'roboto';
+    font-family: sans-serif;
     background-color: #F9FAF8;
-    margin: 0px;
-    padding: 0px;
+    margin: 0;
+    padding: 0;
 }
 
-.containerA {
-    margin: 0px;
-    background-color: #1F2937;
-    display: flex;
-    flex-direction: column;
+#main{
+    max-width: 100vw;
+    max-height: 100vh;
+    font-size: max(2vw,2vh);
+    background: linear-gradient(#7F00FF,#700070)
+}
+
+#nav{
+    font-size: max(1vw,1vh);
 }
 
 .containerB{
-    margin: 0px;
-    background-color: #F9FAF8;
+    background: linear-gradient(yellowgreen,yellow);
     display: flex;
     flex-direction: column;
 }
 
 .containerC{
-    margin: 0px;
-    background-color: #e5e7eb;
+    background: url('./media/genrify_background.png');
     display: flex;
     flex-direction: column;
-}
-
-.header {
-    padding: 60px 100px 40px 100px;
-    display: flex;
-    flex-direction: row;
-    justify-content: center;
-}
-
-.center-title{
-    margin: 0px;
-    margin-bottom: 10px;
-    color: #F9FAF8;
-    font-size: 48px;
-    font-weight: extra-bold;
-    text-align: center;
-}
-
-.dashboard {
-    padding: 0px 100px 400px 100px;
-    display: flex;
-    flex-direction: row;
-    justify-content:space-between;
-}
-
-
-.inner {
-    width: 900px;
-    display: flex;
-    flex-direction: row;
-    justify-content: right;
-    gap: 30px;
-}
-
-.intro {
-    padding: 150px;
-    display: flex;
-    flex-direction: row;
-    justify-content: center;
-    gap: 250px;
-}
-
-.item {
-
-}
-
-.choose {
-    padding: 100px;
-    display: flex;
-    flex-direction: row;
-    justify-content: center;
-}
-
-.starting-point {
-    padding-bottom: 100px;
-    display: flex;
-    flex-direction: row;
-    justify-content: center;
-    gap: 150px;
-}
-
-.starting-button {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    width: 200px;
-    height: 200px;
-    background-color: #F9FAF8;
-    color: #1f2937;
-    border-radius: 30px;
-    border: 4px solid #3882F6;
-    text-decoration: none;
-    text-align: center;
-    font-size: 24px;
-}
-
-.db-button {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    width: 250px;
-    height: 250px;
-    background-color: #c7adf8;
-    color: #1f2937;
-    border-radius: 30px;
-    border: 4px solid #3882F6;
-    text-decoration: none;
-    text-align: center;
-    font-size: 32px;
-}
-
-img {
-    width: 220px;
-    height: 220px;
 }
 
 .features {
-    padding: 100px;
+    padding: 10vh 10vw;
     text-align: center;
 }
 
-h1 {
-    margin: 0px;
-    margin-bottom: 10px;
-    color: #F9FAF8;
-    font-size: 48px;
-    font-weight: extra-bold;
-}
-
-h2 {
-    margin: 0px;
-    color: #1F2937;
-    font-size: 36px;
-    font-weight: extra-bold;
-}
-
-.text,p {
-    margin: 0px;
-    color: #E5E7EB;
-    font-size: 24px;
-}
-
 .feature-text {
-    margin: 15px;
     color: #1f2937;
     font-size: 24px;
     text-align: center;
 }
 
 .cards {
-    margin-top: 80px;
+    display: flex;
+    flex-wrap: wrap; /* Allows wrapping */
+    justify-content: center; /* Center the items horizontally */
+    align-items: center; /* Center the items vertically */
+    gap: 1rem; /* Space between the items */
+    margin: 10vh 0 0 0;
+    width: 80vw;
+}
+
+/* Individual playlist iframe */
+.playlist {
+    border-radius: 5px;  
+    width: calc(100% / 3 - 1rem); /* 3 items per row minus the gap */
+    height: 40vh; /* Height of the iframe */
+}
+
+@media (max-width: 768px) {
+    #main{
+        margin: 0;
+        padding: 0;
+        width: 100%;
+    }
+    .playlist {
+        width: 70%;
+    }
+    #genrify{
+        display: none;
+    }
+}
+
+@keyframes buttonAnimation {
+    0%, 100% {
+        color:#4B0082;
+        transform: translateY(0);
+        box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+    }
+    50% {
+        color:#4B0082;
+        transform: translateY(-10px);
+    }
+}
+
+.starting-point {
+    padding: 5vh;
     display: flex;
     flex-direction: row;
     justify-content: center;
     align-items: center;
-    gap: 100px;
+    font-size: max(2vh,2vw);
 }
 
-.playlist {
-    border-radius: 5px;  
+.starting-button {
+    animation: buttonAnimation 3s infinite ease-in-out;
+    transition: background-color 0.3s, transform 0.3s;
+    position: relative;
+    overflow: hidden;
+    z-index: 1;
 }
 
-.login-button {
-    display: inline-block;
-    margin-top: 40px;
-    padding: 10px 20px;
-    background-color: #1ed760;
-    color: #191414;
-    border-radius: 20px;
+.starting-button:hover {
+    animation: none;
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+}
+
+
+
+.dashboard {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 2rem;
+    width: 100%;
+    padding: 17vh 0;
+}
+
+.db-button {
+    background: rgba(255, 255, 255, 0.1);
+    color: #000;
+    text-align: center;
+    padding: 1rem;
+    border-radius: 8px;
+    width: 50vw;
+    height: 12vh;
     text-decoration: none;
-    font-size: 20px;
-    font-weight: 400;
+    transition: transform 0.3s, box-shadow 0.3s;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
-.login-button:hover {
-    background-color: #1DB954
+.db-button:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2);
+}
+
+.db-button strong {
+    display: block;
+    font-size: max(1.8vh,1.8vw);
+    margin-bottom: 1rem;
+}
+
+.db-button .feature-text {
+    font-size: max(1.4vh,1.4vw);
+    color: black;
+    opacity: 0.5;
 }
 
 .social-buttons {
@@ -215,45 +178,6 @@ h2 {
     text-align: center;
 }
 
-/* Style the table itself */
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 25px 0;
-    font-size: 0.9em;
-    font-family: sans-serif;
-    min-width: 400px;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
-}
-
-/* Style the table header */
-thead tr {
-    background-color: #1F2937;
-    color: #ffffff;
-    text-align: left;
-}
-
-/* Style the table cells */
-th, td {
-    padding: 12px 15px;
-}
-
-/* Style the table body to give zebra-striping to rows */
-tbody tr {
-    border-bottom: 1px solid #dddddd;
-}
-
-tbody tr:nth-of-type(even) {
-    background-color: #f3f3f3;
-}
-
-tbody tr:last-of-type {
-    border-bottom: 2px solid #009879;
-}
-
-tbody tr:hover {
-    background-color: #f1f1f1;
-}
 
 /* Style the link for music preview */
 a {

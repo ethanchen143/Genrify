@@ -1,56 +1,42 @@
 from flask import Flask, redirect, request, session, url_for, render_template,jsonify
 from spotipy.oauth2 import SpotifyOAuth
 import spotipy
-from datetime import timedelta,datetime
-import redis
+from datetime import datetime
 import json
-from uuid import uuid4
 import numpy as np
 import os
 import threading
+from flask_session import Session
 
 app = Flask(__name__)
-app.config['SESSION_COOKIE_NAME'] = 'spotify_login_session'
-app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['REMEMBER_COOKIE_SECURE'] = False
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
-app.secret_key = os.getenv('SECRET_KEY', 'secret_key')
+
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['SESSION_FILE_DIR'] = './flask_session/'  # Ensure this directory exists
+app.config['SESSION_FILE_THRESHOLD'] = 100  # Max number of files before cleanup
+Session(app)
 
 REDIRECT_URL = f"https://www.genrify.us/callback"
 SCOPE = 'user-library-read playlist-read-private playlist-modify-private playlist-modify-public'
 
-from urllib.parse import urlparse
-redis_url = urlparse(os.getenv('REDISCLOUD_URL'))
-redis_client = redis.Redis(host=redis_url.hostname, port=redis_url.port, password=redis_url.password)
-
-@app.after_request
-def add_header(response):
-    response.cache_control.no_store = True
-    return response
-
 @app.route('/')
 def index():
-    session['uuid'] = str(uuid4())
     logged_in = 'token_info' in session and 'access_token' in session['token_info']
     sp_oauth = SpotifyOAuth(
-        client_id=os.getenv('SPOTIPY_CLIENT_ID'),
-        client_secret=os.getenv('SPOTIPY_CLIENT_SECRET'),
+        client_id=os.getenv('CLIENT_ID'),
+        client_secret=os.getenv('CLIENT_SECRET'),
         redirect_uri=REDIRECT_URL,
         scope=SCOPE,
-        cache_path=f"cache/.cache-{session['uuid']}"
     )
     auth_url = sp_oauth.get_authorize_url()
     return render_template('index.html', login_url=auth_url, logged_in=logged_in)
 
 @app.route('/callback')
 def callback():
-    session['uuid'] = str(uuid4())
     sp_oauth = SpotifyOAuth(
-        client_id=os.getenv('SPOTIPY_CLIENT_ID'),
-        client_secret=os.getenv('SPOTIPY_CLIENT_SECRET'),
+        client_id=os.getenv('CLIENT_ID'),
+        client_secret=os.getenv('CLIENT_SECRET'),
         redirect_uri=REDIRECT_URL,
         scope=SCOPE,
-        cache_path=f"cache/.cache-{session['uuid']}"
     )
     token_info = sp_oauth.get_access_token(request.args.get('code'))
     session['token_info'] = token_info
@@ -66,7 +52,6 @@ def callback():
 
 @app.route('/logout')
 def logout():
-    redis_client.flushdb()
     session.pop('token_info', None)
     session.clear()
     return redirect('https://accounts.spotify.com/en/logout')
@@ -101,7 +86,8 @@ def enrich_data(data, sp):
             track.update(feature_data)
         
 def bg_get_tracks(user_id,sp):
-    if not redis_client.exists(user_id):
+    cache_file = f"./cache/{user_id}.json"
+    if not os.path.exists(cache_file):
         offset = 0
         limit = 50
         all_tracks = []
@@ -111,12 +97,17 @@ def bg_get_tracks(user_id,sp):
             if results['next'] is None:
                 break
             offset += limit
-        redis_client.setex(user_id, 900, json.dumps(all_tracks))
+        with open(cache_file, 'w') as f:
+            json.dump(all_tracks, f)
     
 def bg_analyze_tracks(user_id,sp):
-    ana_id = user_id + 'AN'
-    if not redis_client.exists(ana_id):
-        tracks = json.loads(redis_client.get(user_id).decode('utf-8'))
+    ana_file = f"./cache/{user_id}_AN.json"
+    if not os.path.exists(ana_file):
+        cache_file = f"./cache/{user_id}.json"
+        if not os.path.exists(cache_file):
+            bg_get_tracks(user_id, sp)
+        with open(cache_file, 'r') as f:
+            tracks = json.load(f)
         data = simplify_data(tracks)
         enrich_data(data, sp)
         from genre_map import convert
@@ -125,12 +116,17 @@ def bg_analyze_tracks(user_id,sp):
             if 'Others' in processed and len(processed) != 1:
                 processed.remove('Others')
             track['genres'] = processed
-        redis_client.setex(ana_id, 900, json.dumps(data))
+        with open(ana_file, 'w') as f:
+            json.dump(data, f)
+            
     from analysis import analyze
-    an_text_id = user_id + 'AN-Text'
-    if not redis_client.exists(an_text_id):
+    an_text_file = f"./cache/{user_id}_AN-Text.json"
+    if not os.path.exists(an_text_file):
+        with open(ana_file, 'r') as f:
+            data = json.load(f)
         ana_text = analyze(data)
-        redis_client.setex(an_text_id, 900, json.dumps(ana_text))
+        with open(an_text_file, 'w') as f:
+            json.dump(ana_text, f)
 
 import faiss
 def clustering(data, k, max_iterations=500):
@@ -149,7 +145,9 @@ def bg_organize_tracks(user_id,sp):
     popular_weights,valence_weights,energy_weights,dance_weights,acoustic_weights = 2.5,2.5,2.5,2.5,2.5
     ana_id = user_id + 'AN'
     bg_analyze_tracks(user_id,sp)   
-    data = json.loads(redis_client.get(ana_id).decode('utf-8'))
+    ana_file = f"./cache/{user_id}_AN.json"
+    with open(ana_file, 'r') as f:
+        data = json.load(f)
     for track in data:
         order = ["Soundtracks", "Classical", "Experimental", "Jazz", "Country/Folk", "Funk", "Indie", "Rock", "RnB/Soul", "Hip-Hop", "Electronic", "Pop", "Others"]
         order = [genre for genre in order if genre in track['genres']]
@@ -240,20 +238,26 @@ def bg_delete_playlists(user_id,sp):
         for playlist_id in batch:
             sp.user_playlist_unfollow(user_id, playlist_id)
                     
+
 def background_job(user_id, token_info, job_type):
     sp = spotipy.Spotify(auth=token_info['access_token'])
+    status_file = f"./cache/{user_id}_status.json"
     try:
+        with open(status_file, 'w') as f:
+            json.dump('pending', f)
         if job_type == 'get_tracks':
-            bg_get_tracks(user_id,sp)                
+            bg_get_tracks(user_id, sp)                
         elif job_type == 'analyze_tracks':
-            bg_analyze_tracks(user_id,sp)                
+            bg_analyze_tracks(user_id, sp)                
         elif job_type == 'organize_tracks':
-            bg_organize_tracks(user_id,sp)
+            bg_organize_tracks(user_id, sp)
         elif job_type == 'delete_playlists':
-            bg_delete_playlists(user_id,sp)
-        redis_client.set(f"{user_id}_status", 'completed')
+            bg_delete_playlists(user_id, sp)
+        with open(status_file, 'w') as f:
+            json.dump('completed', f)
     except Exception as e:
-        redis_client.set(f"{user_id}_status", f'error: {str(e)}')
+        with open(status_file, 'w') as f:
+            json.dump(f'error: {str(e)}', f)
 
 @app.route('/start_task/<job_type>')
 def start_task(job_type):
@@ -262,7 +266,11 @@ def start_task(job_type):
     
     user_id = session['user_id']
     token_info = session['token_info']
-    redis_client.set(f"{user_id}_status", 'pending')
+    status_file = f"./cache/{user_id}_status.json"
+    
+    with open(status_file, 'w') as f:
+        json.dump('pending', f)
+    
     thread = threading.Thread(target=background_job, args=(user_id, token_info, job_type))
     thread.start()
     return render_template('waiting.html', job_type=job_type)
@@ -286,7 +294,9 @@ def delete_playlists():
 @app.route('/check_status')
 def check_status():
     user_id = session['user_id']
-    status = redis_client.get(f"{user_id}_status").decode('utf-8')
+    cache_file = f"./cache/{user_id}_status.json"
+    with open(cache_file, 'r') as f:
+        status = json.load(f)
     if status == 'completed':
         job_type = request.args.get('job_type')
         print(f'checking status, job_type: {job_type}')
@@ -300,28 +310,32 @@ def check_status():
 def results():
     user_id = session['user_id']
     job_type = request.args.get('type')
+    
     if job_type == 'get_tracks':
-        all_tracks = redis_client.get(user_id)
-        if all_tracks:
-            all_tracks = json.loads(all_tracks.decode('utf-8'))
+        cache_file = f"./cache/{user_id}.json"
+        if os.path.exists(cache_file):
+            with open(cache_file, 'r') as f:
+                all_tracks = json.load(f)
             return render_template('dashboard.html', tracks=all_tracks)
         else:
             return render_template('message.html', text="No tracks found.")
     elif job_type == 'analyze_tracks':
-        data = redis_client.get(user_id + 'AN')
-        ana_text = redis_client.get(user_id + 'AN-Text')
-        if data and ana_text:
-            data = json.loads(data.decode('utf-8'))
-            ana_text = json.loads(ana_text.decode('utf-8'))
+        ana_file = f"./cache/{user_id}_AN.json"
+        an_text_file = f"./cache/{user_id}_AN-Text.json"
+        if os.path.exists(ana_file) and os.path.exists(an_text_file):
+            with open(ana_file, 'r') as f:
+                data = json.load(f)
+            with open(an_text_file, 'r') as f:
+                ana_text = json.load(f)
             return render_template('analytics.html', data=data, text=ana_text)
         else:
             return render_template('message.html', text="Analysis data not found.")
     elif job_type == 'organize_tracks':
         return render_template('message.html', text="Genrify_Playlists created, check them out on your Spotify app!")
     elif job_type == 'delete_playlists':
-        return render_template('message.html',text = "Genrify_Playlists deleted, you can log out and generate again.")
+        return render_template('message.html', text="Genrify_Playlists deleted. Try generating again!")
     else:
         return render_template('message.html', text=f"Invalid job type: {job_type}")
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=8080)
