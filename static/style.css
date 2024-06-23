@@ -68,6 +68,11 @@ body {
     #genrify{
         display: none;
     }
+
+    .playlist{
+        width: 100%;
+        height: 50vh;
+    }
 }
 
 @keyframes buttonAnimation {
