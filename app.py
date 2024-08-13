@@ -139,10 +139,14 @@ def bg_organize_tracks(user_id, sp):
 
     for track in data:
         # Get the genre
-        order = ["Soundtracks", "Classical", "Experimental", "Jazz", "Country/Folk", "Funk", "Indie", "Rock", "RnB/Soul", "Hip-Hop", "Electronic", "Pop", "Others"]
+        order = ["Soundtracks", "Classical", "Experimental", "Jazz", "Country/Folk", "Funk", "Rock", "RnB/Soul", "Indie", "Hip-Hop", "Electronic", "Pop", "Others"]
         order = [genre for genre in order if genre in track['genres']]
         genre = order[0] if order else 'Others'
-
+        
+        # Unclassified Genre
+        if genre == 'Others':
+            continue
+        
         # Get the decade
         try:
             if len(track['album_release_date']) == 10:
@@ -164,17 +168,49 @@ def bg_organize_tracks(user_id, sp):
         
         categorized_tracks[key].append(track['id'])
 
-    # Create playlists based on these categories
+    # Prepare to merge small playlists
+    keys_sorted = sorted(categorized_tracks.keys())
+    merged_categorized_tracks = {}
+
+    i = 0
+    while i < len(keys_sorted):
+        key = keys_sorted[i]
+        if len(categorized_tracks[key]) < 10:
+            # Attempt to merge with next decade
+            if i + 1 < len(keys_sorted):
+                next_key = keys_sorted[i + 1]
+                if key.split(' ')[1] == next_key.split(' ')[1]:  # Same genre
+                    # Merge tracks with next decade
+                    combined_key = f"{key.split(' ')[0]}_{next_key.split(' ')[0]}s {key.split(' ')[1]}"
+                    merged_categorized_tracks[combined_key] = categorized_tracks[key] + categorized_tracks[next_key]
+                    i += 2
+                    continue
+            
+            # Attempt to merge with previous decade
+            if i > 0:
+                prev_key = keys_sorted[i - 1]
+                if key.split(' ')[1] == prev_key.split(' ')[1]:  # Same genre
+                    combined_key = f"{prev_key.split(' ')[0]}_{key.split(' ')[0]}s {key.split(' ')[1]}"
+                    merged_categorized_tracks[combined_key] = categorized_tracks[prev_key] + categorized_tracks[key]
+                    del merged_categorized_tracks[prev_key]
+                    i += 1
+                    continue
+        
+        # If no merge was done, just add the current key to the merged list
+        if key not in merged_categorized_tracks:
+            merged_categorized_tracks[key] = categorized_tracks[key]
+        i += 1
+
+    # Create playlists based on the merged categories
     playlist_ids = {}
-    for key in categorized_tracks:
-        # Format the playlist name as Genrified_80s_RnB
-        decade, genre = key.split(' ')
-        playlist_name = f'Genrified_{decade}_{genre.replace("/", "_")}'
+    for key, tracks in merged_categorized_tracks.items():
+        # Format the playlist name as Genrified_80s_RnB or Genrified_70_80s_RnB for merged decades
+        decades, genre = key.split(' ', 1)
+        playlist_name = f'Genrified_{decades.replace(" ", "_")}_{genre.replace("/", "_")}'
         playlist = sp.user_playlist_create(user=user_id, name=playlist_name, public=False)
         playlist_ids[key] = playlist['id']
-    
-    # Add tracks to the playlists
-    for key, tracks in categorized_tracks.items():
+        
+        # Add tracks to the playlists
         batch_size = 50  # Spotify Rate Limit
         for i in range(0, len(tracks), batch_size):
             batch_tracks = tracks[i:i + batch_size]
