@@ -128,98 +128,57 @@ def bg_analyze_tracks(user_id,sp):
         with open(an_text_file, 'w') as f:
             json.dump(ana_text, f)
 
-import faiss
-def clustering(data, k, max_iterations=500):
-    num_clusters = k
-    dimension = data.shape[1]
-    initial_centroids = np.random.rand(num_clusters, dimension).astype('float32')
-    kmeans = faiss.Kmeans(dimension, num_clusters, niter=max_iterations, verbose=True)
-    kmeans.centroids = initial_centroids  # Initialize centroids
-    kmeans.train(data)
-    D, I = kmeans.index.search(data, 1)
-    return I.flatten(), kmeans.centroids
-        
-def bg_organize_tracks(user_id,sp):
-    dates_weight = 5
-    genre_weights = 1
-    popular_weights,valence_weights,energy_weights,dance_weights,acoustic_weights = 2.5,2.5,2.5,2.5,2.5
-    ana_id = user_id + 'AN'
-    bg_analyze_tracks(user_id,sp)   
+def bg_organize_tracks(user_id, sp):
+    bg_analyze_tracks(user_id, sp)
     ana_file = f"./cache/{user_id}_AN.json"
     with open(ana_file, 'r') as f:
         data = json.load(f)
+    
+    # Initialize a dictionary to hold tracks categorized by decade and genre
+    categorized_tracks = {}
+
     for track in data:
+        # Get the genre
         order = ["Soundtracks", "Classical", "Experimental", "Jazz", "Country/Folk", "Funk", "Indie", "Rock", "RnB/Soul", "Hip-Hop", "Electronic", "Pop", "Others"]
         order = [genre for genre in order if genre in track['genres']]
-        track['genres'] = order[0] if order else 'Others'
-    
-    dates = []
-    for d in data:
+        genre = order[0] if order else 'Others'
+
+        # Get the decade
         try:
-            if len(d['album_release_date']) == 10:
-                dates.append(datetime.strptime(d['album_release_date'], '%Y-%m-%d'))
-            elif len(d['album_release_date']) == 7:
-                dates.append(datetime.strptime(d['album_release_date'], '%Y-%m'))
+            if len(track['album_release_date']) == 10:
+                year = datetime.strptime(track['album_release_date'], '%Y-%m-%d').year
+            elif len(track['album_release_date']) == 7:
+                year = datetime.strptime(track['album_release_date'], '%Y-%m').year
             else:
-                dates.append(datetime.strptime(d['album_release_date'], '%Y'))
+                year = datetime.strptime(track['album_release_date'], '%Y').year
         except:
-            dates.append(datetime.now())
-    min_date = min(dates)
-    max_date = max(dates)
-    dates = [((date - min_date).total_seconds() / (max_date - min_date).total_seconds()) * dates_weight for date in dates]
-    
-    genre_score = {
-        "Soundtracks": 0, "Classical": 10, "Jazz": 20, "Country/Folk": 40,
-        "RnB/Soul": 60, "Pop": 80, "Funk": 100, "Indie": 120, "Rock": 140,
-        "Hip-Hop": 160, "Electronic": 180, "Experimental": 200, "Others": 250
-    }
-    genres = [genre_score[track['genres']] * genre_weights for track in data]
-    genres = [250 if np.isnan(x) else x for x in genres]
-    
-    popularities = [data['track_popularity'] / 100 for data in data]
+            year = datetime.now().year
+        
+        decade = (year // 10) * 10
 
-    normalized_data = np.array([
-        [ dates[idx],genres[idx],popularities[idx] * popular_weights,
-            data[idx]['valence'] * valence_weights,
-            data[idx]['danceability'] * dance_weights,
-            data[idx]['energy'] * energy_weights,
-            data[idx]['acousticness'] * acoustic_weights] for idx in range(len(data))
-    ])
+        # Create a key based on genre and decade
+        key = f"{decade}s {genre}"
+        
+        if key not in categorized_tracks:
+            categorized_tracks[key] = []
+        
+        categorized_tracks[key].append(track['id'])
 
-    num_k = len(data) // 30 + 1
-    cluster_ids, centroids = clustering(normalized_data, k=num_k)
-    
-    from collections import defaultdict
-    cluster_tracks = defaultdict(list)
-    for idx, track in enumerate(data):
-        cluster_id = int(cluster_ids[idx])  
-        cluster_tracks[cluster_id].append(track['id'])
-
-    def custom_name(cluster_id):
-        avg_date = min_date + (centroids[cluster_id][0] / dates_weight) * (max_date - min_date)
-        year = avg_date.strftime("%Y")
-        genre_num = int(centroids[cluster_id][1])
-        closest_genre = None
-        min_difference = float('inf')
-        for k, v in genre_score.items():
-            difference = abs(genre_num - v)
-            if difference < min_difference:
-                min_difference = difference
-                closest_genre = k
-        res = f"{year}'s {closest_genre}"
-        return res
-    
+    # Create playlists based on these categories
     playlist_ids = {}
-    for cluster_id in cluster_tracks:
-        playlist_name = f'Genrify_{cluster_id + 1}_{custom_name(cluster_id)}'
+    for key in categorized_tracks:
+        # Format the playlist name as Genrified_80s_RnB
+        decade, genre = key.split(' ')
+        playlist_name = f'Genrified_{decade}_{genre.replace("/", "_")}'
         playlist = sp.user_playlist_create(user=user_id, name=playlist_name, public=False)
-        playlist_ids[cluster_id] = playlist['id']
-
-    for cluster_id, tracks in cluster_tracks.items():
-        batch_size = 50 # Spotify Rate Limit
+        playlist_ids[key] = playlist['id']
+    
+    # Add tracks to the playlists
+    for key, tracks in categorized_tracks.items():
+        batch_size = 50  # Spotify Rate Limit
         for i in range(0, len(tracks), batch_size):
             batch_tracks = tracks[i:i + batch_size]
-            sp.playlist_add_items(playlist_ids[cluster_id], batch_tracks)
+            sp.playlist_add_items(playlist_ids[key], batch_tracks)
 
 def bg_delete_playlists(user_id,sp):
     playlists = sp.current_user_playlists()
