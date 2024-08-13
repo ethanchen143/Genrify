@@ -221,7 +221,7 @@ def bg_delete_playlists(user_id,sp):
     to_delete = []
     while playlists:
         for playlist in playlists['items']:
-            if playlist['name'].startswith('Genrify'):
+            if playlist['name'].startswith('Genrified'):
                 to_delete.append(playlist['id'])
         if playlists['next']:
             playlists = sp.next(playlists)
@@ -324,11 +324,11 @@ def results():
                 ana_text = json.load(f)
             return render_template('analytics.html', data=data, text=ana_text)
         else:
-            return render_template('message.html', text="Analysis data not found.")
+            return render_template('message.html', text="Analysis data not found")
     elif job_type == 'organize_tracks':
-        return render_template('message.html', text="Genrify_Playlists created, check them out on your Spotify app!")
+        return render_template('message.html', text="Genrified playlists created, check them out in your Spotify")
     elif job_type == 'delete_playlists':
-        return render_template('message.html', text="Genrify_Playlists deleted. Try generating again!")
+        return render_template('message.html', text="All genrified playlists deleted. Try generating again")
     else:
         return render_template('message.html', text=f"Invalid job type: {job_type}")
 
